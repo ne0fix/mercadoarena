@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&family=Be+Vietnam+Pro:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: "Lexend", sans-serif;
+
+  --color-primary: #624325;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #7d5a3a;
+  --color-on-primary-container: #ffd5b3;
+  
+  --color-secondary: #6b5c41;
+  --color-secondary-container: #f2ddba;
+  --color-on-secondary-container: #706145;
+  
+  --color-tertiary: #4d4941;
+  --color-tertiary-container: #656158;
+  
+  --color-surface: #fff8f5;
+  --color-on-surface: #1f1b17;
+  --color-surface-container: #f6ece5;
+  --color-surface-container-low: #fcf2eb;
+  --color-surface-container-high: #f1e6e0;
+  
+  --color-outline: #82756b;
+  --color-outline-variant: #d3c4b8;
+  
+  --color-whatsapp: #25D366;
+  
+  --radius-xl: 1.5rem;
+  --radius-lg: 1rem;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans;
+  }
+}
+
+.sun-shadow {
+  box-shadow: 0 10px 25px -5px rgba(125, 90, 58, 0.12), 0 8px 10px -6px rgba(125, 90, 58, 0.12);
+}
+
+.court-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.court-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
