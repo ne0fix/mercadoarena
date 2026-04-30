@@ -39,9 +39,9 @@ export async function POST(req: Request) {
       userEmail: session.user.email
     })
     return NextResponse.json(output, { status: 201 })
-  } catch (e) {
+  } catch (e: any) {
     if (e instanceof AppError) return NextResponse.json({ message: e.message, code: e.code }, { status: e.statusCode })
-    return NextResponse.json({ message: 'Erro interno' }, { status: 500 })
+    return NextResponse.json({ message: 'Erro interno', debug: e?.message, cause: JSON.stringify(e?.cause) }, { status: 500 })
   }
 }
 
