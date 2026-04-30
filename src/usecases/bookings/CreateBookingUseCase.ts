@@ -89,10 +89,9 @@ export class CreateBookingUseCase {
         pixQrCodeBase64 = transactionData?.qr_code_base64 ?? null
         pixExpiration = paymentData?.date_of_expiration ? new Date(paymentData.date_of_expiration) : null
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create MercadoPago order:', error)
-      // Em produção, talvez queira cancelar o booking se o pagamento falhar na criação
-      // Mas por enquanto vamos manter para permitir retry ou análise
+      throw new Error(`MercadoPago error: ${JSON.stringify(error?.cause || error?.message || error)}`)
     }
 
     const payment = await this.paymentRepo.create({
