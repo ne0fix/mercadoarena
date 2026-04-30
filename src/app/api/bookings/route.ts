@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json(output, { status: 201 })
   } catch (e: any) {
     if (e instanceof AppError) return NextResponse.json({ message: e.message, code: e.code }, { status: e.statusCode })
-    return NextResponse.json({ message: 'Erro interno', debug: String(e), raw: JSON.stringify(e) }, { status: 500 })
+    return NextResponse.json({ message: 'Erro interno' }, { status: 500 })
   }
 }
 

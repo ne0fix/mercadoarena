@@ -45,8 +45,10 @@ export class MercadoPagoService {
               payment_method: {
                 id: input.payment_method_id,
                 type: input.payment_method_id === 'pix' ? 'bank_transfer' : 'credit_card',
-                token: input.token,
-                installments: input.installments || 1
+                ...(input.payment_method_id !== 'pix' && {
+                  token: input.token,
+                  installments: input.installments || 1
+                })
               }
             }
           ]
