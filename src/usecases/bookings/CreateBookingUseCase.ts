@@ -84,9 +84,9 @@ export class CreateBookingUseCase {
 
       if (input.paymentMethod === 'PIX') {
         const paymentData = (mpOrder as any).transactions?.payments?.[0]
-        const transactionData = paymentData?.point_of_interaction?.transaction_data
-        pixQrCode = transactionData?.qr_code ?? null
-        pixQrCodeBase64 = transactionData?.qr_code_base64 ?? null
+        const paymentMethod = paymentData?.payment_method
+        pixQrCode = paymentMethod?.qr_code ?? null
+        pixQrCodeBase64 = paymentMethod?.qr_code_base64 ?? null
         pixExpiration = paymentData?.date_of_expiration ? new Date(paymentData.date_of_expiration) : null
       }
     } catch (error) {
