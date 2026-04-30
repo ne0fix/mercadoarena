@@ -12,6 +12,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  X,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { cn } from '@/core/utils/helpers'

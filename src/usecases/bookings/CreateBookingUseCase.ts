@@ -79,14 +79,14 @@ export class CreateBookingUseCase {
         token: input.paymentToken,
       })
 
-      gatewayId = mpOrder.id
-      gatewayStatus = mpOrder.status
+      gatewayId = mpOrder.id ?? null
+      gatewayStatus = mpOrder.status ?? 'PENDING'
 
       if (input.paymentMethod === 'PIX') {
-        const paymentData = mpOrder.transactions?.payments?.[0]
+        const paymentData = (mpOrder as any).transactions?.payments?.[0]
         const transactionData = paymentData?.point_of_interaction?.transaction_data
-        pixQrCode = transactionData?.qr_code
-        pixQrCodeBase64 = transactionData?.qr_code_base64
+        pixQrCode = transactionData?.qr_code ?? null
+        pixQrCodeBase64 = transactionData?.qr_code_base64 ?? null
         pixExpiration = paymentData?.date_of_expiration ? new Date(paymentData.date_of_expiration) : null
       }
     } catch (error) {

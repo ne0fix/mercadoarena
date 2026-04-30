@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import { PrismaCourtRepository } from '@/infrastructure/repositories/PrismaCourtRepository'
 import { formatCurrency } from '@/core/utils/formatCurrency'
 import { MapPin, Users, Clock } from 'lucide-react'

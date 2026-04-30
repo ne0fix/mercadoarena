@@ -61,23 +61,24 @@ export function usePaymentViewModel() {
     expiry: string
     cvv: string
   }) => {
+    if (cardData) {
       try {
         const publicKey = process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY
         if (!publicKey) throw new Error('MercadoPago Public Key missing')
-        
+
         const mp = new window.MercadoPago(publicKey)
         const [month, year] = cardData.expiry.split('/')
-        
+
         const tokenResult = await mp.createCardToken({
           cardNumber: cardData.cardNumber.replace(/\s/g, ''),
           cardholderName: cardData.cardHolder,
           cardExpirationMonth: month,
           cardExpirationYear: '20' + year,
           securityCode: cardData.cvv,
-          identificationType: 'CPF', // Mock ou coletar se necessário
+          identificationType: 'CPF',
           identificationNumber: '00000000000',
         })
-        
+
         await createBooking({ paymentToken: tokenResult.id })
       } catch (e) {
         console.error('Card tokenization failed:', e)
@@ -107,6 +108,7 @@ export function usePaymentViewModel() {
     date,
     startTime,
     pixQrCode,
+    pixQrCodeBase64,
     copied,
     isPending,
     confirmPayment,

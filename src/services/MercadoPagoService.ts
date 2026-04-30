@@ -38,7 +38,7 @@ export class MercadoPagoService {
         transactions: {
           payments: [
             {
-              amount: input.total_amount,
+              amount: String(input.total_amount),
               payment_method: {
                 id: input.payment_method_id,
                 type: input.payment_method_id === 'pix' ? 'ticket' : 'credit_card',
@@ -50,7 +50,7 @@ export class MercadoPagoService {
         }
       }
 
-      const result = await orderClient.create({ body })
+      const result = await orderClient.create({ body: body as any })
       return result
     } catch (error) {
       console.error('MercadoPago createOrder error:', error)
@@ -65,7 +65,7 @@ export class MercadoPagoService {
     try {
       const result = await orderClient.refund({
         id: orderId,
-        body: amount ? { amount } : {}
+        body: amount ? { amount: String(amount) } as any : undefined
       })
       return result
     } catch (error) {
