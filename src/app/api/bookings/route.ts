@@ -13,6 +13,7 @@ const createSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   paymentMethod: z.enum(['PIX', 'CREDIT_CARD', 'DEBIT_CARD']),
   paymentToken: z.string().optional(),
+  cardBrand: z.string().optional(),
 })
 
 export async function POST(req: Request) {

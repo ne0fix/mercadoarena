@@ -26,16 +26,17 @@ export function usePaymentViewModel() {
   const startTime = params.get('startTime') ?? ''
 
   const { mutateAsync: createBooking, isPending } = useMutation({
-    mutationFn: async (data: { paymentToken?: string }) => {
+    mutationFn: async (data: { paymentToken?: string; cardBrand?: string }) => {
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          courtId, 
-          date, 
-          startTime, 
-          paymentMethod: method, 
-          paymentToken: data.paymentToken 
+        body: JSON.stringify({
+          courtId,
+          date,
+          startTime,
+          paymentMethod: method,
+          paymentToken: data.paymentToken,
+          cardBrand: data.cardBrand,
         }),
       })
       if (!res.ok) throw new Error('Erro ao criar agendamento')
@@ -79,7 +80,8 @@ export function usePaymentViewModel() {
           identificationNumber: '00000000000',
         })
 
-        await createBooking({ paymentToken: tokenResult.id })
+        const brand = tokenResult.card?.payment_method?.id ?? tokenResult.payment_method?.id ?? 'visa'
+        await createBooking({ paymentToken: tokenResult.id, cardBrand: brand })
       } catch (e) {
         console.error('Card tokenization failed:', e)
         router.push('/booking-error?code=TOKEN_FAILED')

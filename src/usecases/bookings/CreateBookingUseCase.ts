@@ -15,6 +15,7 @@ export interface CreateBookingInput {
   startTime: string
   paymentMethod: PaymentMethod
   paymentToken?: string
+  cardBrand?: string
 }
 
 export interface CreateBookingOutput {
@@ -75,7 +76,7 @@ export class CreateBookingUseCase {
         external_reference: booking.id,
         total_amount: totalValue,
         payer_email: input.userEmail,
-        payment_method_id: input.paymentMethod === 'PIX' ? 'pix' : 'visa', // Simplificado para exemplo, visa como fallback
+        payment_method_id: input.paymentMethod === 'PIX' ? 'pix' : (input.cardBrand ?? 'visa'),
         token: input.paymentToken,
       })
 
