@@ -59,7 +59,7 @@ export async function POST(req: Request) {
 
       const status = mpData.status
 
-      if (status === 'approved') {
+      if (['approved', 'processed', 'accredited'].includes(status)) {
         await prisma.$transaction([
           prisma.payment.update({
             where: { id: payment.id },
