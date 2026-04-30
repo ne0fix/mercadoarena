@@ -27,8 +27,7 @@ export class MercadoPagoService {
    */
   async createOrder(input: CreateOrderInput) {
     try {
-      const isTest = (process.env.MERCADOPAGO_ACCESS_TOKEN || '').startsWith('APP_USR-') &&
-        process.env.NODE_ENV !== 'production_live'
+      const isTest = process.env.MERCADOPAGO_LIVE !== 'true'
       const payerEmail = isTest ? 'test_user@testuser.com' : input.payer_email
 
       const body = {
