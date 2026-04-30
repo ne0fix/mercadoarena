@@ -27,13 +27,17 @@ export class MercadoPagoService {
    */
   async createOrder(input: CreateOrderInput) {
     try {
+      const isTest = (process.env.MERCADOPAGO_ACCESS_TOKEN || '').startsWith('APP_USR-') &&
+        process.env.NODE_ENV !== 'production_live'
+      const payerEmail = isTest ? 'test_user@testuser.com' : input.payer_email
+
       const body = {
         type: 'online',
         processing_mode: 'automatic',
         external_reference: input.external_reference,
         total_amount: String(input.total_amount),
         payer: {
-          email: input.payer_email
+          email: payerEmail
         },
         transactions: {
           payments: [
@@ -50,7 +54,10 @@ export class MercadoPagoService {
         }
       }
 
-      const result = await orderClient.create({ body: body as any })
+      const result = await orderClient.create({
+        body: body as any,
+        requestOptions: { idempotencyKey: input.external_reference }
+      })
       return result
     } catch (error) {
       console.error('MercadoPago createOrder error:', error)
