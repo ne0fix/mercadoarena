@@ -31,7 +31,7 @@ export class MercadoPagoService {
         type: 'online',
         processing_mode: 'automatic',
         external_reference: input.external_reference,
-        total_amount: input.total_amount,
+        total_amount: String(input.total_amount),
         payer: {
           email: input.payer_email
         },
@@ -41,7 +41,7 @@ export class MercadoPagoService {
               amount: String(input.total_amount),
               payment_method: {
                 id: input.payment_method_id,
-                type: input.payment_method_id === 'pix' ? 'ticket' : 'credit_card',
+                type: input.payment_method_id === 'pix' ? 'bank_transfer' : 'credit_card',
                 token: input.token,
                 installments: input.installments || 1
               }
