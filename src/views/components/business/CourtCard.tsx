@@ -1,88 +1,99 @@
-import React from 'react';
-import { Court } from '../../../models/entities/Court';
-import { Card } from '../common/Card';
-import { Button } from '../common/Button';
-import { MapPin, Users, ArrowRight, MessageCircle } from 'lucide-react';
-import { formatCurrency } from '../../../core/utils/formatCurrency';
-import { useContactViewModel } from '../../../viewmodels/useContactViewModel';
-import { useNavigate } from 'react-router-dom';
+'use client'
+
+import Link from 'next/link'
+import Image from 'next/image'
+import { MapPin, Users, ArrowRight, MessageCircle } from 'lucide-react'
+import { Button } from '@/views/components/ui/Button'
+import { formatCurrency } from '@/core/utils/formatCurrency'
+import { whatsAppService } from '@/services/WhatsAppService'
+import type { Court } from '@/models/entities/Court'
 
 interface CourtCardProps {
-  court: Court;
+  court: Court
 }
 
-export const CourtCard: React.FC<CourtCardProps> = ({ court }) => {
-  const { handleContactWhatsApp } = useContactViewModel();
-  const navigate = useNavigate();
-
-  const isExclusive = court.type === 'exclusive';
+export function CourtCard({ court }: CourtCardProps) {
+  const isExclusive = court.type === 'EXCLUSIVE'
 
   return (
-    <Card className="flex flex-col group h-full">
-      <div className="relative h-56 overflow-hidden">
-        <img
-          src={court.image}
-          alt={court.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-        {isExclusive ? (
-           <div className="absolute top-4 right-4 z-10">
-            <span className="bg-amber-100 text-amber-900 px-3 py-1 rounded-full font-headline text-[10px] font-bold uppercase tracking-widest border border-amber-200">
-              Exclusivo
-            </span>
-          </div>
+    <div className="flex flex-col group h-full bg-surface-container-lowest rounded-2xl border border-outline-variant/30 overflow-hidden sun-shadow transition-all hover:border-primary/20">
+      <div className="relative h-48 md:h-56 overflow-hidden">
+        {court.imageUrl ? (
+          <Image
+            src={court.imageUrl}
+            alt={court.name}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover transition-transform duration-700 group-hover:scale-110"
+          />
         ) : (
-          <div className="absolute top-4 left-4">
-            <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full font-headline text-[10px] text-primary flex items-center gap-1.5 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-green-500"></span>
-              Disponível agora
-            </span>
+          <div className="w-full h-full bg-secondary-container flex items-center justify-center">
+            <span className="font-headline text-primary text-2xl font-bold">{court.name[0]}</span>
           </div>
         )}
+        <div className="absolute top-3 right-3 z-10">
+          {isExclusive ? (
+            <span className="bg-amber-100 text-amber-900 px-2.5 py-1 rounded-full font-headline text-[9px] font-bold uppercase tracking-wider border border-amber-200 shadow-sm">
+              Exclusivo
+            </span>
+          ) : (
+            <span className="bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-full font-headline text-[9px] text-primary flex items-center gap-1.5 shadow-sm font-bold border border-primary/5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Disponível
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="p-6 flex flex-col flex-grow">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="font-headline text-xl text-on-surface mb-1">{court.name}</h3>
-            <div className="flex items-center gap-2 text-on-surface-variant">
-              <MapPin className="w-4 h-4 text-primary" />
-              <span className="font-headline text-xs font-medium">{court.location}</span>
+      <div className="p-4 md:p-6 flex flex-col flex-grow">
+        <div className="flex justify-between items-start mb-3 md:mb-4">
+          <div className="space-y-0.5 md:space-y-1">
+            <h3 className="font-headline text-lg md:text-xl text-on-surface font-bold leading-tight">{court.name}</h3>
+            <div className="flex items-center gap-1.5 text-on-surface-variant">
+              <MapPin className="w-3.5 h-3.5 text-primary" />
+              <span className="font-headline text-[10px] md:text-xs font-semibold">{court.location}</span>
             </div>
           </div>
           {!isExclusive && (
             <div className="text-right">
-              <span className="font-headline text-[10px] text-on-surface-variant block uppercase">A partir de</span>
-              <span className="font-headline text-lg text-primary font-bold">{formatCurrency(court.pricePerHour)}</span>
+              <span className="font-headline text-[9px] text-on-surface-variant block uppercase font-bold tracking-tighter">Valor/h</span>
+              <span className="font-headline text-base md:text-lg text-primary font-extrabold">
+                {formatCurrency(court.pricePerHour)}
+              </span>
             </div>
           )}
         </div>
 
-        <p className="text-on-surface-variant text-sm line-clamp-2 mb-6">
+        <p className="text-on-surface-variant text-xs md:text-sm line-clamp-2 mb-4 md:mb-6 font-medium leading-relaxed">
           {court.description}
         </p>
+
+        <div className="flex items-center gap-2 mb-5 md:mb-6">
+          <div className="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-lg">
+            <Users className="w-3.5 h-3.5 text-primary" />
+            <span className="font-headline text-[10px] md:text-xs text-on-surface font-bold">Até {court.maxPlayers}</span>
+          </div>
+        </div>
 
         <div className="mt-auto">
           {isExclusive ? (
             <Button
               variant="whatsapp"
-              className="w-full"
-              leftIcon={<MessageCircle className="w-5 h-5" />}
-              onClick={() => handleContactWhatsApp(court.name)}
+              className="w-full h-11 md:h-12 text-xs md:text-sm"
+              leftIcon={<MessageCircle className="w-4 h-4 md:w-5 md:h-5" />}
+              onClick={() => window.open(whatsAppService.getExclusiveLink(court.name), '_blank')}
             >
               Falar no WhatsApp
             </Button>
           ) : (
-            <Button
-              className="w-full"
-              rightIcon={<ArrowRight className="w-5 h-5" />}
-              onClick={() => navigate(`/booking/${court.id}`)}
-            >
-              Agendar Horário
-            </Button>
+            <Link href={`/booking/${court.id}`} className="block">
+              <Button className="w-full h-11 md:h-12 text-xs md:text-sm" rightIcon={<ArrowRight className="w-4 h-4 md:w-5 md:h-5" />}>
+                Agendar Horário
+              </Button>
+            </Link>
           )}
         </div>
       </div>
-    </Card>
-  );
-};
+    </div>
+  )
+}

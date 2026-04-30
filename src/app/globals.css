@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Be Vietnam Pro", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: "Lexend", sans-serif;
+
+  --color-primary: #624325;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #7d5a3a;
+  --color-on-primary-container: #ffd5b3;
+
+  --color-secondary: #6b5c41;
+  --color-secondary-container: #f2ddba;
+  --color-on-secondary-container: #706145;
+
+  --color-tertiary: #4d4941;
+  --color-tertiary-container: #656158;
+
+  --color-surface: #fff8f5;
+  --color-on-surface: #1f1b17;
+  --color-surface-container: #f6ece5;
+  --color-surface-container-low: #fcf2eb;
+  --color-surface-container-high: #f1e6e0;
+  --color-surface-container-lowest: #ffffff;
+
+  --color-outline: #82756b;
+  --color-outline-variant: #d3c4b8;
+
+  --color-whatsapp: #25D366;
+
+  --radius-xl: 1.5rem;
+  --radius-lg: 1rem;
+}
+
+@layer base {
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+    min-height: 100dvh;
+    position: relative;
+  }
+}
+
+.sun-shadow {
+  box-shadow: 0 10px 25px -5px rgba(125, 90, 58, 0.12),
+    0 8px 10px -6px rgba(125, 90, 58, 0.12);
+}
+
+.court-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.court-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Esconder indicadores de desenvolvimento do Next.js em todos os ambientes */
+nextjs-portal,
+#nextjs-portal, 
+#next-logo,
+[data-next-badge], 
+[data-next-mark],
+[data-nextjs-scroll-focus-boundary] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: fixed !important;
+  top: -9999px !important;
+  left: -9999px !important;
+  width: 0 !important;
+  height: 0 !important;
+  z-index: -9999 !important;
+}

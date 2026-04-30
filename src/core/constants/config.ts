@@ -1,17 +1,26 @@
+export const CONFIG = {
+  WHATSAPP_NUMBER: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '5511999999999',
+  CURRENCY: 'BRL',
+  LOCALE: 'pt-BR',
+} as const
+
 export const ROUTES = {
   LOGIN: '/login',
   HOME: '/',
-  BOOKING: '/booking/:id',
+  BOOKING: '/booking',
   PAYMENT: '/payment',
   CONTACT: '/contact',
   PROFILE: '/profile',
   BOOKINGS: '/bookings',
   SUCCESS: '/booking-success',
   ERROR: '/booking-error',
-} as const;
-
-export const CONFIG = {
-  WHATSAPP_NUMBER: '5511999999999',
-  CURRENCY: 'BRL',
-  LOCALE: 'pt-BR',
-} as const;
+  ADMIN: {
+    DASHBOARD: '/admin/dashboard',
+    BOOKINGS: '/admin/bookings',
+    COURTS: '/admin/courts',
+    CLIENTS: '/admin/clients',
+    PAYMENTS: '/admin/payments',
+    REPORTS: '/admin/reports',
+    SETTINGS: '/admin/settings',
+  },
+} as const
