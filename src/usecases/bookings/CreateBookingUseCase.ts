@@ -98,7 +98,7 @@ export class CreateBookingUseCase {
     const payment = await this.paymentRepo.create({
       bookingId: booking.id,
       method: input.paymentMethod,
-      status: gatewayStatus === 'approved' ? 'APPROVED' : 'PENDING',
+      status: ['approved', 'processed', 'accredited'].includes(gatewayStatus) ? 'APPROVED' : 'PENDING',
       amount: totalValue,
       gatewayId: gatewayId?.toString() || null,
       gatewayStatus: gatewayStatus,
@@ -108,7 +108,7 @@ export class CreateBookingUseCase {
       cardLastFour: null, // Pode ser extraído do response se disponível
       cardBrand: null,
       installments: 1,
-      paidAt: gatewayStatus === 'approved' ? new Date() : null,
+      paidAt: ['approved', 'processed', 'accredited'].includes(gatewayStatus) ? new Date() : null,
       refundedAt: null,
       refundedBy: null,
       refundAmount: null,
