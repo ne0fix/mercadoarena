@@ -6,6 +6,7 @@ import { PrismaBookingRepository } from '@/infrastructure/repositories/PrismaBoo
 import { PrismaCourtRepository } from '@/infrastructure/repositories/PrismaCourtRepository'
 import { PrismaPaymentRepository } from '@/infrastructure/repositories/PrismaPaymentRepository'
 import { AppError } from '@/core/errors/AppError'
+import { emitToRoom } from '@/lib/socket-server'
 
 const createSchema = z.object({
   courtId: z.string().min(1),
@@ -34,11 +35,20 @@ export async function POST(req: Request) {
       new PrismaCourtRepository(),
       new PrismaPaymentRepository()
     )
-    const output = await useCase.execute({ 
-      ...result.data, 
+    const output = await useCase.execute({
+      ...result.data,
       userId: session.user.id,
       userEmail: session.user.email
     })
+
+    // Notifica admin em tempo real sobre novo agendamento
+    emitToRoom('admin', 'booking:new', {
+      courtId: result.data.courtId,
+      date: result.data.date,
+      startTime: result.data.startTime,
+      userName: session.user.name,
+    })
+
     return NextResponse.json(output, { status: 201 })
   } catch (e: any) {
     if (e instanceof AppError) return NextResponse.json({ message: e.message, code: e.code }, { status: e.statusCode })

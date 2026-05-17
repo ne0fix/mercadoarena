@@ -1,5 +1,5 @@
 import { PrismaCourtRepository } from '@/infrastructure/repositories/PrismaCourtRepository'
-import { CourtCard } from '@/views/components/business/CourtCard'
+import { CourtsLive } from '@/views/components/business/CourtsLive'
 import type { Court } from '@/models/entities/Court'
 
 export const revalidate = 60
@@ -27,17 +27,7 @@ export default async function HomePage() {
         </h2>
       </div>
 
-      {courts.length === 0 ? (
-        <div className="p-12 text-center bg-surface-container rounded-3xl border border-outline-variant/30">
-          <p className="font-headline text-on-surface-variant font-medium">Nenhuma quadra disponível no momento.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
-          {courts.map((court) => (
-            <CourtCard key={court.id} court={court} />
-          ))}
-        </div>
-      )}
+      <CourtsLive initialCourts={courts} />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">

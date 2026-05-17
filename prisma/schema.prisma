@@ -96,6 +96,7 @@ model Court {
   description  String
   pricePerHour Decimal   @db.Decimal(10, 2)
   imageUrl     String?
+  images       String[]  @default([])
   type         CourtType @default(REGULAR)
   amenities    String[]
   maxPlayers   Int
@@ -196,6 +197,12 @@ model Payment {
 
   booking Booking @relation(fields: [bookingId], references: [id])
 
+  @@index([createdAt])
+  @@index([status])
+  @@index([method])
+  @@index([status, createdAt])
+  @@index([method, status])
+  @@index([paidAt])
   @@map("payments")
 }
 

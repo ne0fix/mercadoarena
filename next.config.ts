@@ -5,16 +5,14 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'lh3.googleusercontent.com',
+        hostname: '**',
       },
       {
-        protocol: 'https',
-        hostname: '*.googleusercontent.com',
+        protocol: 'http',
+        hostname: 'localhost',
       },
     ],
   },
-  // Remove serverActions.allowedOrigins — Vercel gerencia automaticamente pelo domínio do deploy.
-  // Em dev local, Next.js aceita localhost por padrão.
 }
 
 export default nextConfig

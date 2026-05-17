@@ -1,8 +1,8 @@
-import Image from 'next/image'
 import Link from 'next/link'
 import { PrismaCourtRepository } from '@/infrastructure/repositories/PrismaCourtRepository'
 import { formatCurrency } from '@/core/utils/formatCurrency'
 import { MapPin, Users, Clock } from 'lucide-react'
+import { CourtImageCarousel } from '@/views/components/business/CourtImageCarousel'
 
 export const revalidate = 0
 
@@ -24,15 +24,13 @@ export default async function AdminCourtsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {courts.map((court) => (
           <div key={court.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 overflow-hidden sun-shadow">
-            <div className="relative h-40">
-              {court.imageUrl ? (
-                <Image src={court.imageUrl} alt={court.name} fill className="object-cover" />
-              ) : (
-                <div className="w-full h-full bg-secondary-container flex items-center justify-center">
-                  <span className="font-headline text-primary text-3xl font-bold">{court.name[0]}</span>
-                </div>
-              )}
-              <div className={`absolute top-3 right-3 px-2 py-1 rounded-full font-headline text-[10px] font-bold uppercase ${court.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+            <div className="relative h-40 group">
+              <CourtImageCarousel
+                images={court.images ?? []}
+                fallbackUrl={court.imageUrl}
+                name={court.name}
+              />
+              <div className={`absolute top-3 right-3 z-10 px-2 py-1 rounded-full font-headline text-[10px] font-bold uppercase ${court.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                 {court.isActive ? 'Ativa' : 'Inativa'}
               </div>
             </div>
@@ -67,11 +65,11 @@ export default async function AdminCourtsPage() {
                   Gerenciar Horários
                 </Link>
                 <div className="grid grid-cols-2 gap-2">
-                  <button className="bg-surface-container text-on-surface-variant hover:bg-outline-variant/30 px-3 py-2 rounded-xl font-headline text-[10px] font-bold uppercase transition-all">
+                  <Link href="/admin/settings" className="bg-surface-container text-on-surface-variant hover:bg-outline-variant/30 px-3 py-2 rounded-xl font-headline text-[10px] font-bold uppercase transition-all text-center">
                     Editar
-                  </button>
+                  </Link>
                   <button className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-2 rounded-xl font-headline text-[10px] font-bold uppercase transition-all">
-                    Deletar
+                    Desativar
                   </button>
                 </div>
               </div>

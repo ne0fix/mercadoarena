@@ -19,7 +19,7 @@ export const ROUTES = {
     BOOKINGS: '/admin/bookings',
     COURTS: '/admin/courts',
     CLIENTS: '/admin/clients',
-    PAYMENTS: '/admin/payments',
+    PAYMENTS: '/admin/financeiro',
     REPORTS: '/admin/reports',
     SETTINGS: '/admin/settings',
   },

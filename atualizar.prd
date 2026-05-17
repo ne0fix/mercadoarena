@@ -1,0 +1,1329 @@
+# PRD — Atualizações e Correções: Arena Beach Praia
+## Documento de Requisitos para Completar a Operação 100%
+
+**Versão:** 1.0
+**Data:** 2026-05-07
+**Autor:** ne0fix
+**Status:** Aprovado para Implementação
+**Base:** Análise técnica completa realizada em 2026-05-07
+
+---
+
+## Índice
+
+1. [Visão Geral](#1-visão-geral)
+2. [Estado Atual vs Estado Desejado](#2-estado-atual-vs-estado-desejado)
+3. [Fase 1 — Correção de Bugs Críticos](#3-fase-1--correção-de-bugs-críticos)
+4. [Fase 2 — APIs de Backend Faltando](#4-fase-2--apis-de-backend-faltando)
+5. [Fase 3 — Frontend Incompleto](#5-fase-3--frontend-incompleto)
+6. [Fase 4 — Funcionalidades Completas Não Iniciadas](#6-fase-4--funcionalidades-completas-não-iniciadas)
+7. [Fase 5 — Configuração e Ambiente](#7-fase-5--configuração-e-ambiente)
+8. [Critérios de Aceitação Globais](#8-critérios-de-aceitação-globais)
+9. [Stack e Padrões Arquiteturais](#9-stack-e-padrões-arquiteturais)
+
+---
+
+## 1. Visão Geral
+
+### 1.1 Objetivo
+
+Este documento especifica todas as correções, endpoints e funcionalidades que devem ser implementados para que a plataforma Arena Beach Praia opere 100% — tanto no frontend (portal cliente e dashboard admin) quanto no backend (APIs, regras de negócio, persistência).
+
+### 1.2 Escopo
+
+| Categoria | Itens |
+|-----------|-------|
+| Bugs críticos (funcionalidade quebrada) | 4 |
+| APIs de backend faltando | 8 |
+| Frontend incompleto (UI existe, sem lógica) | 6 |
+| Funcionalidades novas completas | 4 |
+| Configuração de ambiente | 2 |
+| **Total de entregáveis** | **24** |
+
+### 1.3 Fases de Entrega
+
+```
+Fase 1 — Bugs Críticos        → Prioridade IMEDIATA (quebra o que existe)
+Fase 2 — APIs Backend         → Prioridade ALTA (desbloqueia UI)
+Fase 3 — Frontend Incompleto  → Prioridade ALTA (completa fluxos)
+Fase 4 — Novas Funcionalidades→ Prioridade MÉDIA (expande negócio)
+Fase 5 — Ambiente             → Prioridade ALTA (necessário para deploy)
+```
+
+---
+
+## 2. Estado Atual vs Estado Desejado
+
+### 2.1 Quadros (Courts)
+
+| Aspecto | Atual | Desejado |
+|---------|-------|---------|
+| Listagem admin | ✅ Funciona | ✅ |
+| Visualizar quadra | ✅ Funciona | ✅ |
+| Criar quadra | ❌ Sem botão, sem API | ✅ Formulário + POST /api/admin/courts |
+| Editar quadra | ❌ Botão sem handler | ✅ Modal + PUT /api/admin/courts/[id] |
+| Deletar quadra | ❌ Botão sem handler | ✅ Confirmação + DELETE /api/admin/courts/[id] |
+| Configurar horários | ❌ Bugs + sem save | ✅ Página por quadra + PATCH schedule |
+| Bloquear datas | ❌ Modelo no DB, sem API | ✅ API + UI de gestão |
+
+### 2.2 Agendamentos (Bookings)
+
+| Aspecto | Atual | Desejado |
+|---------|-------|---------|
+| Criar reserva (cliente) | ✅ Funciona | ✅ |
+| Listar minhas reservas | ✅ Funciona | ✅ |
+| Listar admin | ✅ Funciona | ✅ |
+| Busca por texto | ❌ Input sem handler | ✅ Busca por nome/email do cliente |
+| Cancelar (admin) | ✅ Funciona | ✅ |
+| Estornar (admin) | ✅ Funciona | ✅ |
+| Marcar COMPLETED | ❌ Manual/nunca ocorre | ✅ Automático por data |
+
+### 2.3 Usuário / Perfil
+
+| Aspecto | Atual | Desejado |
+|---------|-------|---------|
+| Login / Cadastro | ✅ Funciona | ✅ |
+| Visualizar perfil | ✅ Funciona | ✅ |
+| Editar nome/telefone | ❌ Sem form, sem API | ✅ Formulário + PUT /api/users/profile |
+| Trocar senha | ❌ Sem form, sem API | ✅ Formulário + PUT /api/users/password |
+
+### 2.4 Dashboard Admin
+
+| Aspecto | Atual | Desejado |
+|---------|-------|---------|
+| KPIs (totais) | ✅ Funciona | ✅ |
+| Gráfico de ocupação | ✅ Funciona | ✅ |
+| Gráfico de receita | ❌ Usa preço hardcoded | ✅ Dados reais de pagamentos |
+| Agendamentos recentes | ✅ Funciona | ✅ |
+
+### 2.5 Notificações
+
+| Canal | Atual | Desejado |
+|-------|-------|---------|
+| E-mail confirmação | ❌ Não implementado | ✅ Resend (transacional) |
+| E-mail cancelamento | ❌ Não implementado | ✅ Resend |
+| WhatsApp | ⚠️ Gera link apenas | ✅ Mantém link (suficiente por ora) |
+
+---
+
+## 3. Fase 1 — Correção de Bugs Críticos
+
+### BUG-01 — `addSlot()` nunca insere o novo horário
+
+**Prioridade:** CRÍTICA
+**Arquivo:** `src/app/(admin)/admin/courts/schedule/page.tsx`
+**Linha:** 20–25
+
+**Problema:**
+A função `addSlot` cria uma cópia ordenada do array existente mas nunca inclui `newSlot`, tornando impossível adicionar novos horários.
+
+```ts
+// CÓDIGO ATUAL (BUGADO):
+const addSlot = () => {
+  if (newSlot && !slots.includes(newSlot)) {
+    setSlots([...slots].sort())   // ← newSlot nunca entra no array
+    setNewSlot('')
+  }
+}
+
+// CÓDIGO CORRETO:
+const addSlot = () => {
+  if (newSlot && !slots.includes(newSlot)) {
+    setSlots([...slots, newSlot].sort())   // ← inclui newSlot antes de ordenar
+    setNewSlot('')
+  }
+}
+```
+
+**Critério de Aceitação:**
+- Digitar um horário no input e pressionar Tab/blur adiciona o slot ao grid
+- O array é reordenado cronologicamente após inserção
+- Slots duplicados são ignorados
+
+---
+
+### BUG-02 — Campo de busca de agendamentos desconectado
+
+**Prioridade:** ALTA
+**Arquivo:** `src/app/(admin)/admin/bookings/page.tsx`
+**Linha:** 32–37
+
+**Problema:**
+O `<input placeholder="Buscar cliente ou quadra...">` renderiza mas não tem `value` nem `onChange` conectados ao viewmodel `useBookingsAdminViewModel`. A busca não funciona.
+
+O viewmodel já tem o campo `search?: string` na interface `Filters` (linha 11 de `useBookingsAdminViewModel.ts`) mas não o envia como parâmetro para a API nem o inclui no `params`.
+
+**Correção necessária em dois arquivos:**
+
+**1. `src/viewmodels/admin/useBookingsAdminViewModel.ts`**
+```ts
+// Adicionar search ao URLSearchParams:
+if (filters.search) params.set('search', filters.search)
+```
+
+**2. `src/app/api/bookings/route.ts` — GET handler**
+Adicionar suporte ao parâmetro `search` no `findAll`:
+```ts
+const search = searchParams.get('search') ?? undefined
+const result = await repo.findAll({ ..., search })
+```
+
+**3. `src/infrastructure/repositories/PrismaBookingRepository.ts`**
+Adicionar filtro de busca no `findAll`:
+```ts
+if (search) {
+  where.OR = [
+    { user: { name: { contains: search, mode: 'insensitive' } } },
+    { user: { email: { contains: search, mode: 'insensitive' } } },
+    { court: { name: { contains: search, mode: 'insensitive' } } },
+    { accessCode: { contains: search, mode: 'insensitive' } },
+  ]
+}
+```
+
+**4. `src/repositories/IBookingRepository.ts`**
+Adicionar `search?: string` à interface `ListBookingsFilter`.
+
+**5. `src/app/(admin)/admin/bookings/page.tsx`**
+Conectar o input ao viewmodel:
+```tsx
+<input
+  value={vm.filters.search ?? ''}
+  onChange={(e) => vm.setFilter('search', e.target.value || undefined)}
+  placeholder="Buscar cliente ou quadra..."
+  ...
+/>
+```
+
+**Critério de Aceitação:**
+- Digitar nome do cliente filtra a tabela em tempo real
+- Busca funciona por nome, e-mail, nome da quadra e código de acesso
+- Limpar o campo remove o filtro
+- Paginação reseta para página 1 ao buscar
+
+---
+
+### BUG-03 — Revenue Chart usa preço hardcoded
+
+**Prioridade:** ALTA
+**Arquivo:** `src/app/(admin)/admin/dashboard/page.tsx`
+**Linha:** 105–109
+
+**Problema:**
+```ts
+// ATUAL — multiplica contagem de bookings por valor fixo R$87,50:
+revenue: d.count * 87.5,
+refunds: 0,
+
+// CORRETO — deve usar receita real dos pagamentos aprovados
+```
+
+A API `/api/admin/stats` já retorna `netRevenue` e `totalRevenue`, mas o chart usa `bookingsByDay` (contagem) em vez dos dados financeiros reais.
+
+**Correção:**
+A API `GET /api/admin/stats` deve ser expandida para retornar receita por dia no array `bookingsByDay`:
+
+```ts
+// ANTES (retorna):
+bookingsByDay: [{ day: '05/05', count: 3 }]
+
+// DEPOIS (retorna):
+bookingsByDay: [{ day: '05/05', count: 3, revenue: 262.50, refunds: 0 }]
+```
+
+**Mudanças necessárias:**
+
+**1. `src/app/api/admin/stats/route.ts`**
+Cruzar `bookingsByDay` com os dados de `payments` para calcular receita real por dia:
+```ts
+bookings.forEach((b) => {
+  const d = format(new Date(b.date), 'dd/MM')
+  if (dayMap[d] !== undefined) {
+    dayMap[d].count++
+    if (b.payment?.status === 'APPROVED') {
+      dayMap[d].revenue += Number(b.payment.amount)
+    }
+    if (['REFUNDED', 'PARTIAL_REFUND'].includes(b.payment?.status ?? '')) {
+      dayMap[d].refunds += Number(b.payment?.refundAmount ?? 0)
+    }
+  }
+})
+```
+
+Nota: O `include` do `prisma.booking.findMany` já inclui `payment` na query existente.
+
+**2. `src/app/(admin)/admin/dashboard/page.tsx`**
+```tsx
+// ANTES:
+revenue: d.count * 87.5,
+refunds: 0,
+
+// DEPOIS:
+revenue: (d as any).revenue ?? 0,
+refunds: (d as any).refunds ?? 0,
+```
+
+**Critério de Aceitação:**
+- Revenue Chart exibe receita real calculada dos pagamentos aprovados
+- Linha de estornos exibe valores reais de reembolso
+- Sem valores hardcoded em nenhuma parte do dashboard
+
+---
+
+### BUG-04 — Página de horários não vinculada à quadra específica
+
+**Prioridade:** ALTA
+**Arquivo:** `src/app/(admin)/admin/courts/schedule/page.tsx`
+
+**Problema:**
+A página está em `/admin/courts/schedule` (rota genérica) e exibe "Quadra 01" hardcoded. Não recebe `courtId`, não carrega os horários reais do banco, e não tem como salvar. O botão "Gerenciar Horários" em `/admin/courts/page.tsx` aponta para `/admin/courts/schedule` sem nenhum ID.
+
+**Solução — Mover para rota parametrizada:**
+
+**1. Mover arquivo:**
+```
+DE:   src/app/(admin)/admin/courts/schedule/page.tsx
+PARA: src/app/(admin)/admin/courts/[id]/schedule/page.tsx
+```
+
+**2. Carregar dados reais da quadra:**
+```tsx
+// Recebe params.id, faz fetch de /api/courts/[id]
+// Exibe nome real da quadra no header
+// Carrega openTime, closeTime, slotDuration como estado inicial
+```
+
+**3. Corrigir link em `/admin/courts/page.tsx`:**
+```tsx
+// ANTES:
+href="/admin/courts/schedule"
+
+// DEPOIS:
+href={`/admin/courts/${court.id}/schedule`}
+```
+
+**Critério de Aceitação:**
+- URL contém o ID da quadra: `/admin/courts/abc123/schedule`
+- Header exibe o nome real da quadra
+- Horários iniciais refletem `openTime`/`closeTime`/`slotDuration` do banco
+- Botão "Salvar Alterações" persiste as mudanças (ver Fase 2 — API-04)
+
+---
+
+## 4. Fase 2 — APIs de Backend Faltando
+
+### API-01 — CRUD Completo de Quadras (Admin)
+
+**Prioridade:** ALTA
+**Arquivo novo:** `src/app/api/admin/courts/route.ts`
+**Arquivo novo:** `src/app/api/admin/courts/[id]/route.ts`
+
+**Motivação:**
+Os botões "Editar" e "Deletar" existem na UI mas chamam handlers que não existem. Não há como criar novas quadras.
+
+#### 4.1.1 `POST /api/admin/courts` — Criar quadra
+
+**Autenticação:** MANAGER ou ADMIN
+
+**Request body (Zod schema):**
+```ts
+const createCourtSchema = z.object({
+  name: z.string().min(2).max(50),
+  description: z.string().min(10).max(500),
+  pricePerHour: z.number().positive(),
+  imageUrl: z.string().url().optional(),
+  type: z.enum(['REGULAR', 'EXCLUSIVE']).default('REGULAR'),
+  amenities: z.array(z.string()).default([]),
+  maxPlayers: z.number().int().min(2).max(20),
+  location: z.string().min(3).max(100),
+  openTime: z.string().regex(/^\d{2}:\d{2}$/).default('06:00'),
+  closeTime: z.string().regex(/^\d{2}:\d{2}$/).default('22:00'),
+  slotDuration: z.number().int().min(30).max(120).default(60),
+})
+```
+
+**Response 201:**
+```json
+{
+  "id": "clxxx...",
+  "name": "Quadra 03",
+  ...
+}
+```
+
+**Erros:**
+- 400 — Dados inválidos (Zod)
+- 403 — Não autorizado
+
+#### 4.1.2 `PUT /api/admin/courts/[id]` — Editar quadra
+
+**Autenticação:** MANAGER ou ADMIN
+
+**Request body:** Mesmo schema do POST, todos os campos opcionais.
+
+**Comportamento:**
+- Valida que a quadra existe antes de atualizar
+- Usa `PrismaCourtRepository.update(id, data)`
+- Retorna a quadra atualizada
+
+**Response 200:** Quadra completa atualizada
+
+**Erros:**
+- 404 — Quadra não encontrada
+- 400 — Dados inválidos
+- 403 — Não autorizado
+
+#### 4.1.3 `DELETE /api/admin/courts/[id]` — Desativar quadra
+
+**Autenticação:** ADMIN apenas (não MANAGER)
+
+**Comportamento:**
+- Soft delete: `isActive = false` (já implementado em `PrismaCourtRepository.delete()`)
+- Verifica se há reservas PENDING ou CONFIRMED futuras antes de desativar
+- Se houver, retorna erro 409 com contagem de reservas afetadas
+- Se não houver, desativa a quadra
+
+**Response 200:**
+```json
+{ "message": "Quadra desativada com sucesso" }
+```
+
+**Erros:**
+- 409 — `"Existem 3 agendamentos futuros ativos para esta quadra"`
+- 403 — Apenas ADMIN pode deletar (MANAGER não pode)
+- 404 — Quadra não encontrada
+
+---
+
+### API-02 — Configuração de Horários da Quadra
+
+**Prioridade:** ALTA
+**Arquivo novo:** `src/app/api/admin/courts/[id]/schedule/route.ts`
+
+**Motivação:**
+O botão "Salvar Alterações" da página de horários não tem endpoint. Precisa persistir `openTime`, `closeTime` e `slotDuration` no banco.
+
+#### `PATCH /api/admin/courts/[id]/schedule`
+
+**Autenticação:** MANAGER ou ADMIN
+
+**Request body (Zod schema):**
+```ts
+const scheduleSchema = z.object({
+  openTime: z.string().regex(/^\d{2}:\d{2}$/),
+  closeTime: z.string().regex(/^\d{2}:\d{2}$/),
+  slotDuration: z.number().int().min(30).max(120),
+})
+```
+
+**Validações de negócio:**
+- `closeTime` deve ser estritamente após `openTime`
+- `slotDuration` deve dividir exatamente o intervalo (ex.: 06:00–22:00 = 960min; slotDuration=60 → OK; slotDuration=70 → avisar mas não bloquear)
+
+**Comportamento:**
+```ts
+await prisma.court.update({
+  where: { id },
+  data: { openTime, closeTime, slotDuration }
+})
+```
+
+**Response 200:**
+```json
+{
+  "openTime": "07:00",
+  "closeTime": "22:00",
+  "slotDuration": 60
+}
+```
+
+---
+
+### API-03 — Indisponibilidade de Quadras
+
+**Prioridade:** MÉDIA
+**Arquivo novo:** `src/app/api/admin/courts/[id]/unavailability/route.ts`
+
+**Motivação:**
+O modelo `CourtUnavailability` existe no schema Prisma mas não tem API nem UI. Necessário para bloquear feriados, manutenções e eventos especiais.
+
+#### `GET /api/admin/courts/[id]/unavailability`
+
+Retorna lista de datas bloqueadas para a quadra.
+
+**Query params:** `?month=2026-05` (formato YYYY-MM, opcional)
+
+**Response 200:**
+```json
+[
+  { "id": "clxxx", "date": "2026-05-01", "reason": "Feriado Nacional" },
+  { "id": "clyyy", "date": "2026-05-20", "reason": "Manutenção" }
+]
+```
+
+#### `POST /api/admin/courts/[id]/unavailability`
+
+**Autenticação:** MANAGER ou ADMIN
+
+**Request body (Zod schema):**
+```ts
+const unavailabilitySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  reason: z.string().max(200).optional(),
+})
+```
+
+**Comportamento:**
+- Cria registro em `court_unavailabilities`
+- Retorna 409 se data já está bloqueada para aquela quadra
+
+#### `DELETE /api/admin/courts/[id]/unavailability/[unavailabilityId]`
+
+Remove bloqueio de data específica.
+
+---
+
+### API-04 — Atualização do Perfil do Usuário
+
+**Prioridade:** ALTA
+**Arquivo novo:** `src/app/api/users/profile/route.ts`
+
+**Motivação:**
+A página `/profile` exibe apenas dados de leitura. Não há como atualizar nome, telefone ou senha.
+
+#### `GET /api/users/profile`
+
+**Autenticação:** Usuário logado (qualquer role)
+
+**Response 200:**
+```json
+{
+  "id": "clxxx",
+  "name": "João Silva",
+  "email": "joao@email.com",
+  "phone": "11999999999",
+  "cpf": "***.***.***-**",
+  "createdAt": "2026-01-15T10:00:00Z"
+}
+```
+
+Nota: CPF deve ser mascarado na resposta (exibir apenas últimos 2 dígitos).
+
+#### `PUT /api/users/profile`
+
+**Autenticação:** Usuário logado (qualquer role)
+
+**Request body (Zod schema):**
+```ts
+const updateProfileSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  phone: z.string().regex(/^\d{10,11}$/).optional().nullable(),
+})
+```
+
+**Comportamento:**
+- Atualiza apenas campos fornecidos (`undefined` não altera)
+- Email NÃO pode ser alterado (campo imutável — requer fluxo de verificação)
+- CPF NÃO pode ser alterado após cadastro
+
+**Response 200:**
+```json
+{
+  "name": "João Silva Atualizado",
+  "phone": "11988887777"
+}
+```
+
+---
+
+### API-05 — Troca de Senha
+
+**Prioridade:** ALTA
+**Arquivo novo:** `src/app/api/users/password/route.ts`
+
+#### `PUT /api/users/password`
+
+**Autenticação:** Usuário logado (qualquer role)
+
+**Request body (Zod schema):**
+```ts
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(6),
+  newPassword: z.string().min(8).max(72),
+  confirmPassword: z.string(),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: 'As senhas não coincidem',
+  path: ['confirmPassword'],
+})
+```
+
+**Comportamento:**
+1. Busca usuário pelo `session.user.id`
+2. Verifica `currentPassword` com `bcrypt.compare()`
+3. Se errada → 400 `"Senha atual incorreta"`
+4. Hash da nova senha com `bcrypt.hash(newPassword, 12)`
+5. Atualiza `passwordHash` no banco
+6. Retorna 200 `{ "message": "Senha alterada com sucesso" }`
+
+**Erros:**
+- 400 — Senha atual incorreta
+- 400 — Senhas novas não coincidem
+- 400 — Nova senha igual à atual
+
+---
+
+### API-06 — Busca Textual nos Agendamentos (complemento BUG-02)
+
+Coberto em BUG-02. A API `/api/bookings` GET já existe e deve receber o parâmetro `search` conforme descrito.
+
+---
+
+### API-07 — Completar Agendamentos Passados (Cron)
+
+**Prioridade:** MÉDIA
+**Arquivo novo:** `src/app/api/cron/complete-bookings/route.ts`
+
+**Motivação:**
+Reservas com status `CONFIRMED` cuja data/horário já passou nunca transitam para `COMPLETED`. O sistema fica com dados imprecisos nos relatórios.
+
+**Endpoint (Vercel Cron Job):**
+```
+GET /api/cron/complete-bookings
+```
+
+**Autenticação:** Bearer token via header `Authorization: Bearer ${CRON_SECRET}`
+
+**Comportamento:**
+```ts
+const now = new Date()
+const result = await prisma.booking.updateMany({
+  where: {
+    status: 'CONFIRMED',
+    OR: [
+      // Data passada
+      { date: { lt: startOfDay(now) } },
+      // Mesmo dia mas horário já passou (comparação string HH:MM)
+      {
+        date: startOfDay(now),
+        endTime: { lt: format(now, 'HH:mm') }
+      }
+    ]
+  },
+  data: { status: 'COMPLETED' }
+})
+```
+
+**Response 200:**
+```json
+{ "completed": 7, "message": "7 agendamentos marcados como concluídos" }
+```
+
+**Configuração no `vercel.json`:**
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/complete-bookings",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+Adicionar ao `.env`:
+```
+CRON_SECRET="gere-uma-chave-aleatoria-de-32-chars"
+```
+
+---
+
+### API-08 — Notificações por E-mail (Transacional)
+
+**Prioridade:** MÉDIA
+**Arquivo novo:** `src/services/EmailService.ts`
+**Arquivo novo:** `src/app/api/emails/` (templates internos)
+
+Ver Fase 4 — detalhamento completo.
+
+---
+
+## 5. Fase 3 — Frontend Incompleto
+
+### FE-01 — Gerenciamento de Quadras Admin (Create/Edit/Delete)
+
+**Prioridade:** ALTA
+**Arquivo:** `src/app/(admin)/admin/courts/page.tsx`
+
+#### 5.1.1 Botão "Nova Quadra"
+
+Adicionar botão no header da página:
+```tsx
+<Button onClick={() => setShowCreate(true)} leftIcon={<Plus />}>
+  Nova Quadra
+</Button>
+```
+
+#### 5.1.2 Modal de Criação/Edição
+
+**Arquivo novo:** `src/views/components/admin/CourtFormModal.tsx`
+
+**Props:**
+```ts
+interface CourtFormModalProps {
+  open: boolean
+  onClose: () => void
+  court?: Court       // Se fornecido, modo edição. Se undefined, modo criação.
+  onSuccess: () => void
+}
+```
+
+**Campos do formulário:**
+| Campo | Tipo | Validação |
+|-------|------|-----------|
+| Nome | text | min 2, max 50 |
+| Descrição | textarea | min 10, max 500 |
+| Preço por hora | number | positivo, 2 decimais |
+| Tipo | select | REGULAR / EXCLUSIVE |
+| URL da Imagem | text | URL válida, opcional |
+| Localização | text | min 3, max 100 |
+| Máx. Jogadores | number | 2–20 |
+| Horário abertura | time | HH:MM |
+| Horário fechamento | time | HH:MM |
+| Duração do slot | select | 30min / 45min / 60min / 90min / 120min |
+| Comodidades | multi-select/tags | array de strings |
+| Ativa? | toggle | boolean |
+
+**Comportamento:**
+- Modo criação: `POST /api/admin/courts`
+- Modo edição: `PUT /api/admin/courts/[id]`
+- Após sucesso: fecha modal, invalida query `['admin-courts']`
+- Erros de validação exibidos inline nos campos
+
+#### 5.1.3 Conectar botão "Editar"
+
+```tsx
+// ANTES:
+<button className="...">Editar</button>
+
+// DEPOIS:
+<button onClick={() => { setEditingCourt(court); setShowEdit(true) }}>
+  Editar
+</button>
+```
+
+#### 5.1.4 Modal de Confirmação de Delete
+
+**Arquivo novo:** `src/views/components/admin/DeleteCourtModal.tsx`
+
+**Props:**
+```ts
+interface DeleteCourtModalProps {
+  open: boolean
+  courtName: string
+  courtId: string
+  onClose: () => void
+  onSuccess: () => void
+}
+```
+
+**Comportamento:**
+- Exibe mensagem: `"Tem certeza que deseja desativar a quadra [nome]?"`
+- Botão "Desativar" chama `DELETE /api/admin/courts/[id]`
+- Se API retorna 409 → exibe mensagem "Existem X agendamentos futuros. Cancele-os antes de desativar."
+- Após sucesso → fecha modal, invalida query
+
+#### 5.1.5 ViewModel para Courts Admin
+
+**Arquivo novo:** `src/viewmodels/admin/useCourtsAdminViewModel.ts`
+
+```ts
+export function useCourtsAdminViewModel() {
+  const queryClient = useQueryClient()
+
+  const { data: courts, isLoading } = useQuery({
+    queryKey: ['admin-courts'],
+    queryFn: () => fetch('/api/admin/courts').then(r => r.json()),
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (data: CreateCourtInput) =>
+      fetch('/api/admin/courts', { method: 'POST', body: JSON.stringify(data) }).then(r => r.json()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-courts'] }),
+  })
+
+  const updateMutation = useMutation({ ... })
+  const deleteMutation = useMutation({ ... })
+
+  return { courts, isLoading, createMutation, updateMutation, deleteMutation }
+}
+```
+
+**Critério de Aceitação:**
+- Admin consegue criar nova quadra via formulário
+- Admin consegue editar todos os campos de uma quadra
+- Admin consegue desativar quadra (com proteção de reservas futuras)
+- Lista atualiza sem recarregar a página
+
+---
+
+### FE-02 — Página de Horários Vinculada à Quadra
+
+**Prioridade:** ALTA
+**Arquivo:** Mover para `src/app/(admin)/admin/courts/[id]/schedule/page.tsx`
+
+**Dependências:** BUG-04 (mover rota) + API-02 (endpoint de save)
+
+**Comportamento completo:**
+
+```tsx
+export default function CourtSchedulePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+
+  // 1. Carregar quadra para exibir nome e horários atuais
+  const { data: court } = useQuery({
+    queryKey: ['court', id],
+    queryFn: () => fetch(`/api/courts/${id}`).then(r => r.json()),
+  })
+
+  // 2. Inicializar estado a partir dos dados reais
+  const [openTime, setOpenTime] = useState(court?.openTime ?? '06:00')
+  const [closeTime, setCloseTime] = useState(court?.closeTime ?? '22:00')
+  const [slotDuration, setSlotDuration] = useState(court?.slotDuration ?? 60)
+
+  // 3. Calcular slots dinamicamente a partir de openTime/closeTime/slotDuration
+  const slots = useMemo(() => generateSlots(openTime, closeTime, slotDuration), [...])
+
+  // 4. Salvar via PATCH /api/admin/courts/[id]/schedule
+  const saveMutation = useMutation({
+    mutationFn: () => fetch(`/api/admin/courts/${id}/schedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({ openTime, closeTime, slotDuration })
+    }).then(r => r.json()),
+    onSuccess: () => toast.success('Horários salvos com sucesso'),
+  })
+```
+
+**Função auxiliar `generateSlots`:**
+```ts
+function generateSlots(open: string, close: string, duration: number): string[] {
+  const slots: string[] = []
+  let [h, m] = open.split(':').map(Number)
+  const [ch, cm] = close.split(':').map(Number)
+  const closeMinutes = ch * 60 + cm
+
+  while (h * 60 + m < closeMinutes) {
+    slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
+    m += duration
+    if (m >= 60) { h += Math.floor(m / 60); m = m % 60 }
+  }
+  return slots
+}
+```
+
+**Campos adicionais na UI:**
+- Input "Horário de abertura" (time picker)
+- Input "Horário de fechamento" (time picker)
+- Select "Duração do slot" (30 / 45 / 60 / 90 / 120 min)
+- Grid de slots calculados automaticamente (somente visualização)
+
+**Critério de Aceitação:**
+- Header mostra nome real da quadra
+- Alterar openTime/closeTime/slotDuration atualiza grid de slots em tempo real
+- Botão "Salvar" chama API e exibe confirmação
+- Navegação volta para `/admin/courts`
+
+---
+
+### FE-03 — Perfil do Usuário Editável
+
+**Prioridade:** ALTA
+**Arquivo:** `src/app/(client)/profile/page.tsx`
+
+**Dependências:** API-04 e API-05
+
+**Comportamento:**
+
+#### 5.3.1 Seção de dados pessoais
+
+Adicionar botão "Editar" na seção de perfil:
+```tsx
+<button onClick={() => setEditing(true)}>
+  <Edit className="w-4 h-4" /> Editar
+</button>
+```
+
+Quando `editing = true`, exibir formulário inline com:
+- Campo Nome (pré-preenchido)
+- Campo Telefone (pré-preenchido, máscara `(XX) XXXXX-XXXX`)
+- Botões "Salvar" e "Cancelar"
+
+**Mutation:**
+```ts
+const updateProfileMutation = useMutation({
+  mutationFn: (data: { name?: string; phone?: string }) =>
+    fetch('/api/users/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }).then(r => r.json()),
+  onSuccess: () => {
+    update()  // Atualiza sessão NextAuth
+    setEditing(false)
+  }
+})
+```
+
+#### 5.3.2 Seção de troca de senha
+
+Adicionar card separado "Segurança":
+```tsx
+<div className="bg-surface-container-lowest rounded-2xl ...">
+  <h3>Segurança</h3>
+  {!showPasswordForm ? (
+    <button onClick={() => setShowPasswordForm(true)}>
+      Alterar Senha
+    </button>
+  ) : (
+    <ChangePasswordForm onSubmit={changePasswordMutation.mutate} onCancel={...} />
+  )}
+</div>
+```
+
+**Campos do formulário de senha:**
+| Campo | Tipo | Placeholder |
+|-------|------|-------------|
+| Senha atual | password | "Sua senha atual" |
+| Nova senha | password | "Mínimo 8 caracteres" |
+| Confirmar nova senha | password | "Repita a nova senha" |
+
+**Critério de Aceitação:**
+- Campos de nome e telefone são editáveis inline
+- Email permanece somente leitura
+- Mudanças refletem imediatamente na sessão (via `update()` do NextAuth)
+- Formulário de senha valida confirmação antes de enviar
+- Feedback de erro/sucesso visível
+
+---
+
+### FE-04 — Busca nos Agendamentos Admin (complemento BUG-02)
+
+Coberto em BUG-02. Apenas o input precisa ser conectado ao viewmodel após as correções na API e no repositório.
+
+---
+
+### FE-05 — Gestão de Indisponibilidade de Quadras
+
+**Prioridade:** MÉDIA
+**Dependência:** API-03
+
+**Localização:** Nova seção na página de detalhe da quadra ou como página separada `/admin/courts/[id]/unavailability`
+
+**Componente:** `src/views/components/admin/CourtUnavailabilityManager.tsx`
+
+**Comportamento:**
+- Mini calendário mensal com navegação
+- Datas bloqueadas exibidas em vermelho
+- Clicar em data livre → modal para confirmar bloqueio com campo de motivo
+- Clicar em data bloqueada → opção de remover bloqueio
+- Mutações via API-03
+
+**Critério de Aceitação:**
+- Admin consegue bloquear qualquer data futura para uma quadra
+- Datas bloqueadas não aparecem como disponíveis no portal do cliente
+- Admin consegue remover bloqueio
+- Motivo do bloqueio é opcional mas visível na listagem
+
+---
+
+### FE-06 — Dashboard Revenue Chart com Dados Reais
+
+Coberto em BUG-03. Requer apenas a correção do chart após a API retornar dados reais.
+
+---
+
+## 6. Fase 4 — Funcionalidades Completas Não Iniciadas
+
+### FEAT-01 — Serviço de E-mail Transacional
+
+**Prioridade:** MÉDIA
+**Provider:** Resend (https://resend.com) — free tier: 3.000 emails/mês
+**SDK:** `resend` npm package
+
+**Instalação:**
+```bash
+npm install resend
+```
+
+**Variável de ambiente nova:**
+```
+RESEND_API_KEY="re_xxxxxxxxxxxx"
+RESEND_FROM_EMAIL="noreply@arenabeachserra.com.br"
+```
+
+#### 6.1.1 `src/services/EmailService.ts`
+
+```ts
+import { Resend } from 'resend'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
+const FROM = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
+
+export class EmailService {
+  async sendBookingConfirmation(data: {
+    to: string
+    name: string
+    courtName: string
+    date: string
+    startTime: string
+    endTime: string
+    totalValue: number
+    accessCode: string
+  }): Promise<void>
+
+  async sendPaymentApproved(data: {
+    to: string
+    name: string
+    courtName: string
+    date: string
+    amount: number
+    paymentMethod: string
+    accessCode: string
+  }): Promise<void>
+
+  async sendBookingCancelled(data: {
+    to: string
+    name: string
+    courtName: string
+    date: string
+    cancelReason?: string
+    refundAmount?: number
+  }): Promise<void>
+}
+
+export const emailService = new EmailService()
+```
+
+#### 6.1.2 Templates de E-mail
+
+Templates em HTML inline (sem framework de templates para manter zero-deps).
+
+**E-mail de confirmação de reserva** — disparado após `CreateBookingUseCase`:
+- Assunto: `"Reserva confirmada — Quadra {nome} em {data}"`
+- Corpo: dados da reserva + código de acesso + QR Code PIX se aplicável
+
+**E-mail de pagamento aprovado** — disparado pelo webhook quando status = APPROVED:
+- Assunto: `"Pagamento aprovado — Arena Beach Serra"`
+- Corpo: valor pago + método + link para minhas reservas
+
+**E-mail de cancelamento** — disparado após `CancelBookingUseCase`:
+- Assunto: `"Reserva cancelada — Arena Beach Serra"`
+- Corpo: dados da reserva cancelada + motivo + valor reembolsado (se houver)
+
+#### 6.1.3 Pontos de disparo
+
+| E-mail | Arquivo | Onde inserir |
+|--------|---------|--------------|
+| Confirmação de reserva | `CreateBookingUseCase.ts` | Após `paymentRepo.create()` |
+| Pagamento aprovado | `src/app/api/payments/webhook/route.ts` | Após `prisma.$transaction` com APPROVED |
+| Cancelamento | `CancelBookingUseCase.ts` | Após `bookingRepo.update()` com CANCELLED |
+
+**Critério de Aceitação:**
+- E-mail de confirmação chega em até 30 segundos após criação da reserva
+- E-mail de pagamento aprovado chega após webhook confirmar
+- E-mail de cancelamento chega após admin/cliente cancelar
+- Falha no envio de e-mail não interrompe o fluxo principal (try/catch isolado)
+- Logs de erro visíveis no console quando envio falha
+
+---
+
+### FEAT-02 — Automação de Status COMPLETED
+
+Coberto em API-07. Cron job via Vercel Crons rodando a cada hora.
+
+---
+
+### FEAT-03 — Retry de Pagamento (Cliente)
+
+**Prioridade:** BAIXA
+**Arquivo:** `src/app/(client)/booking-error/page.tsx`
+
+**Motivação:**
+Quando o pagamento falha, a página `/booking-error` exibe apenas uma mensagem genérica sem ação útil.
+
+**Comportamento:**
+- Página recebe `?bookingId=xxx` na query string
+- Carrega dados da reserva com status PENDING
+- Exibe motivo do erro (rejected/expired)
+- Botão "Tentar Novamente" → redireciona para `/payment?bookingId=xxx` com opção de trocar método de pagamento
+- Botão "Cancelar Reserva" → cancela booking e redireciona para home
+
+**Arquivo novo:** `src/app/api/bookings/[id]/retry-payment/route.ts`
+
+```
+POST /api/bookings/[id]/retry-payment
+Body: { paymentMethod, paymentToken?, cardBrand? }
+```
+
+**Comportamento:**
+- Verifica booking está PENDING
+- Verifica pagamento está REJECTED ou EXPIRED
+- Cria nova ordem no MercadoPago
+- Atualiza payment com novo gatewayId/status
+- Retorna novos dados de PIX se aplicável
+
+---
+
+### FEAT-04 — Indicador de Status de Pagamento PIX em Tempo Real
+
+**Prioridade:** BAIXA
+**Arquivo:** `src/app/(client)/payment/page.tsx`
+
+**Motivação:**
+Após gerar o QR Code PIX, o cliente não tem feedback de quando o pagamento é confirmado — precisa recarregar a página manualmente.
+
+**Comportamento:**
+- Após exibir QR Code PIX, iniciar polling a cada 5 segundos em `GET /api/bookings/[id]`
+- Se `booking.status === 'CONFIRMED'` → redirecionar automaticamente para `/booking-success`
+- Exibir contador regressivo de expiração do PIX
+- Parar polling após 30 minutos ou após confirmação
+
+```ts
+useEffect(() => {
+  if (method !== 'PIX' || !bookingId) return
+
+  const interval = setInterval(async () => {
+    const booking = await fetch(`/api/bookings/${bookingId}`).then(r => r.json())
+    if (booking.status === 'CONFIRMED') {
+      clearInterval(interval)
+      router.push(`/booking-success?id=${bookingId}`)
+    }
+  }, 5000)
+
+  return () => clearInterval(interval)
+}, [bookingId, method])
+```
+
+---
+
+## 7. Fase 5 — Configuração e Ambiente
+
+### ENV-01 — Variáveis de Ambiente Faltando
+
+**Arquivo:** `.env.local.example`
+
+**Adicionar as seguintes variáveis:**
+
+```bash
+# Prisma Connection Pooling (obrigatório para Supabase/PgBouncer)
+DIRECT_URL="postgresql://arena:arenadev@localhost:5432/arenabeach"
+
+# MercadoPago — controle modo teste/produção
+# "true" = produção (usa email real do pagador)
+# "false" ou ausente = teste (usa test_user@testuser.com)
+MERCADOPAGO_LIVE="false"
+
+# Resend — serviço de e-mail transacional
+RESEND_API_KEY=""
+RESEND_FROM_EMAIL="noreply@arenabeachserra.com.br"
+
+# Cron Jobs — segurança do endpoint de automação
+CRON_SECRET="gere-uma-chave-aleatoria-de-32-caracteres"
+```
+
+**Atualizar `prisma/schema.prisma`** para confirmar que `DIRECT_URL` está mapeado:
+```prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")   // ← já existe, confirmar no .env
+}
+```
+
+---
+
+### ENV-02 — Webhook MercadoPago — Habilitar Validação de Assinatura
+
+**Prioridade:** ALTA (segurança)
+**Arquivo:** `src/app/api/payments/webhook/route.ts`
+**Linha:** 34–37
+
+**Problema:**
+A linha de rejeição de webhook com assinatura inválida está comentada:
+```ts
+// return NextResponse.json({ message: 'Invalid signature' }, { status: 401 })
+```
+
+Isso significa que qualquer requisição externa pode acionar o webhook e modificar status de pagamentos.
+
+**Correção:**
+```ts
+if (process.env.MERCADOPAGO_WEBHOOK_SECRET && signature) {
+  // ... validação existente ...
+  if (digest !== v1) {
+    console.error('MercadoPago Webhook: Assinatura Inválida')
+    return NextResponse.json({ message: 'Invalid signature' }, { status: 401 })  // ← descomentar
+  }
+}
+```
+
+**Condição:** Ativar somente após configurar `MERCADOPAGO_WEBHOOK_SECRET` no ambiente de produção com o valor fornecido pelo painel do MercadoPago.
+
+---
+
+## 8. Critérios de Aceitação Globais
+
+### 8.1 Funcionalidade
+
+- [ ] Admin consegue criar, editar e desativar quadras
+- [ ] Admin consegue configurar horários de cada quadra individualmente
+- [ ] Admin consegue bloquear datas específicas de quadras
+- [ ] Busca textual nos agendamentos funciona por nome, email e código
+- [ ] Revenue Chart exibe dados financeiros reais (sem hardcode)
+- [ ] Perfil do cliente permite editar nome e telefone
+- [ ] Perfil do cliente permite trocar senha
+- [ ] E-mails transacionais são enviados nos 3 eventos principais
+- [ ] Reservas passadas são automaticamente marcadas como COMPLETED
+- [ ] PIX polling redireciona automaticamente após confirmação
+
+### 8.2 Segurança
+
+- [ ] Webhook MercadoPago valida assinatura em produção
+- [ ] Endpoints admin requerem MANAGER ou ADMIN (verificado no servidor)
+- [ ] Delete de quadra requer ADMIN (não MANAGER)
+- [ ] Alteração de senha verifica senha atual antes de atualizar
+- [ ] CPF mascarado em respostas de API
+- [ ] CRON_SECRET protege endpoint de automação
+
+### 8.3 Qualidade de Código
+
+- [ ] Todos os endpoints novos usam Zod para validação de input
+- [ ] Erros de negócio usam `AppError` com `statusCode` correto
+- [ ] Repositórios seguem interfaces existentes (`ICourtRepository`, etc.)
+- [ ] ViewModels novos usam `@tanstack/react-query` (mutations + queries)
+- [ ] Sem `any` desnecessário em TypeScript
+- [ ] Sem `console.log` em código de produção (apenas `console.error`)
+
+### 8.4 UX
+
+- [ ] Loading states em todos os botões de ação (disabled + spinner)
+- [ ] Feedback de sucesso após criação/edição (toast ou mensagem)
+- [ ] Mensagens de erro amigáveis (sem stack traces expostos ao usuário)
+- [ ] Formulários bloqueados durante submissão
+- [ ] Confirmação antes de ações destrutivas (deletar quadra, cancelar reserva)
+
+---
+
+## 9. Stack e Padrões Arquiteturais
+
+### 9.1 Padrões a Seguir (baseados no código existente)
+
+| Camada | Padrão |
+|--------|--------|
+| API Routes | `NextResponse.json()`, validação Zod no início, `auth()` para sessão |
+| Use Cases | Classe com construtor injetando repositórios, método `execute()` |
+| Repositories | Implementação Prisma de interface `I*Repository` |
+| ViewModels | Hook `use*ViewModel` com `useQuery` + `useMutation` do TanStack Query |
+| Páginas Admin | Server Component quando possível; `'use client'` apenas se necessário |
+| Páginas Cliente | Mix de SSR + CSR via viewmodels |
+| Erros | `throw new AppError(message, code, statusCode)` nos use cases |
+| Entidades | Types planos sem classes, `Decimal` → `number` na conversão |
+
+### 9.2 Convenções de Arquivo
+
+```
+Novo endpoint admin:       src/app/api/admin/{recurso}/route.ts
+Novo endpoint usuário:     src/app/api/users/{ação}/route.ts
+Novo componente admin:     src/views/components/admin/{Nome}.tsx
+Novo viewmodel admin:      src/viewmodels/admin/use{Nome}ViewModel.ts
+Novo viewmodel cliente:    src/viewmodels/client/use{Nome}ViewModel.ts
+Nova página admin:         src/app/(admin)/admin/{rota}/page.tsx
+Nova página cliente:       src/app/(client)/{rota}/page.tsx
+```
+
+### 9.3 Estrutura de Resposta de Erro Padrão
+
+```ts
+// Todos os endpoints de erro devem retornar:
+{ "message": "Descrição amigável do erro", "code": "SNAKE_CASE_CODE" }
+
+// Exemplos:
+{ "message": "Quadra não encontrada", "code": "COURT_NOT_FOUND" }
+{ "message": "Existem 3 agendamentos futuros ativos", "code": "COURT_HAS_ACTIVE_BOOKINGS" }
+{ "message": "Senha atual incorreta", "code": "INVALID_CURRENT_PASSWORD" }
+```
+
+---
+
+## Apêndice A — Resumo de Entregáveis por Fase
+
+### Fase 1 — Bugs Críticos (4 itens)
+
+| ID | Descrição | Arquivos Afetados |
+|----|-----------|-------------------|
+| BUG-01 | Corrigir `addSlot()` | `courts/schedule/page.tsx` |
+| BUG-02 | Conectar busca de agendamentos | `bookings/page.tsx`, `useBookingsAdminViewModel.ts`, `IBookingRepository.ts`, `PrismaBookingRepository.ts`, `/api/bookings/route.ts` |
+| BUG-03 | Revenue Chart com dados reais | `dashboard/page.tsx`, `/api/admin/stats/route.ts` |
+| BUG-04 | Schedule page por quadra específica | `schedule/page.tsx` (mover + corrigir) |
+
+### Fase 2 — APIs Backend (7 endpoints)
+
+| ID | Endpoint | Método | Arquivo |
+|----|----------|--------|---------|
+| API-01a | `/api/admin/courts` | POST | Novo arquivo |
+| API-01b | `/api/admin/courts/[id]` | PUT | Novo arquivo |
+| API-01c | `/api/admin/courts/[id]` | DELETE | Novo arquivo |
+| API-02 | `/api/admin/courts/[id]/schedule` | PATCH | Novo arquivo |
+| API-03 | `/api/admin/courts/[id]/unavailability` | GET/POST/DELETE | Novo arquivo |
+| API-04 | `/api/users/profile` | GET/PUT | Novo arquivo |
+| API-05 | `/api/users/password` | PUT | Novo arquivo |
+| API-07 | `/api/cron/complete-bookings` | GET | Novo arquivo |
+
+### Fase 3 — Frontend (6 itens)
+
+| ID | Descrição | Arquivos Novos/Modificados |
+|----|-----------|---------------------------|
+| FE-01 | CRUD Courts Admin | `courts/page.tsx`, `CourtFormModal.tsx`, `DeleteCourtModal.tsx`, `useCourtsAdminViewModel.ts` |
+| FE-02 | Schedule page por quadra | `courts/[id]/schedule/page.tsx` |
+| FE-03 | Perfil editável | `profile/page.tsx` |
+| FE-04 | Busca agendamentos | `bookings/page.tsx` (conectar) |
+| FE-05 | Gestão indisponibilidade | `CourtUnavailabilityManager.tsx` |
+| FE-06 | Dashboard chart real | `dashboard/page.tsx` (conectar) |
+
+### Fase 4 — Novas Funcionalidades (4 itens)
+
+| ID | Descrição | Complexidade |
+|----|-----------|--------------|
+| FEAT-01 | E-mail transacional (Resend) | Média |
+| FEAT-02 | Cron COMPLETED (ver API-07) | Baixa |
+| FEAT-03 | Retry de pagamento | Média |
+| FEAT-04 | PIX polling automático | Baixa |
+
+### Fase 5 — Ambiente (2 itens)
+
+| ID | Descrição |
+|----|-----------|
+| ENV-01 | Adicionar variáveis faltando ao `.env.local.example` |
+| ENV-02 | Habilitar validação de assinatura do webhook MercadoPago |
+
+---
+
+## Apêndice B — Ordem de Implementação Recomendada
+
+```
+1. BUG-01 (addSlot)              ← 5 min
+2. BUG-02 (busca agendamentos)   ← 30 min
+3. BUG-03 (revenue chart)        ← 20 min
+4. ENV-01 (variáveis de ambiente)← 5 min
+5. ENV-02 (webhook signature)    ← 2 min
+6. BUG-04 + API-02 (schedule)   ← 1h (mover rota + criar API + corrigir bugs)
+7. API-01 (CRUD courts)          ← 1.5h (3 endpoints + repositório já pronto)
+8. FE-01 (modais courts)         ← 2h (CourtFormModal + DeleteCourtModal + ViewModel)
+9. API-04 + FE-03 (perfil)       ← 1.5h
+10. API-05 (senha)               ← 30 min
+11. API-07 (cron COMPLETED)      ← 30 min
+12. API-03 + FE-05 (unavailability) ← 2h
+13. FEAT-01 (e-mail)             ← 2h (EmailService + 3 templates + 3 pontos de disparo)
+14. FEAT-04 (PIX polling)        ← 45 min
+15. FEAT-03 (retry pagamento)    ← 1.5h
+
+TOTAL ESTIMADO: ~15 horas de desenvolvimento
+```

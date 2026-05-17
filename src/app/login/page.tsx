@@ -1,36 +1,27 @@
 'use client'
 
-import { useState } from 'react'
-import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
+import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/views/components/ui/Button'
 import { User, Lock, EyeOff, Eye, ArrowRight, HelpCircle } from 'lucide-react'
 import { motion } from 'motion/react'
+import { loginAction } from './actions'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setLoading(true)
-    const res = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
+    startTransition(async () => {
+      const err = await loginAction(email, password)
+      if (err) setError(err)
     })
-    setLoading(false)
-    if (res?.error) {
-      setError('E-mail ou senha incorretos.')
-    } else {
-      router.push('/')
-    }
   }
 
   return (
@@ -95,7 +86,7 @@ export default function LoginPage() {
             type="submit"
             className="w-full h-12 rounded-xl text-sm"
             rightIcon={<ArrowRight className="w-4 h-4" />}
-            isLoading={loading}
+            isLoading={isPending}
           >
             Entrar
           </Button>
@@ -103,8 +94,8 @@ export default function LoginPage() {
 
         <div className="mt-6 pt-4 border-t border-outline-variant/30 text-center">
           <p className="text-on-surface-variant text-xs">
-            Novo por aqui?
-            <button className="text-primary font-bold hover:underline ml-1">Cadastre-se</button>
+            Novo por aqui?{' '}
+            <Link href="/cadastro" className="text-primary font-bold hover:underline">Cadastre-se</Link>
           </p>
         </div>
       </motion.main>

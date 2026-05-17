@@ -1,0 +1,1139 @@
+# PRD — Dashboard de Gestão Financeira
+## Arena Beach Praia — Módulo Financeiro Administrativo
+
+**Versão:** 1.0
+**Data:** 2026-04-30
+**Status:** Em Especificação
+**Autor:** Equipe de Produto
+**Contexto:** Módulo "coração" do painel administrativo
+
+---
+
+## 1. VISÃO GERAL
+
+### 1.1 Objetivo
+
+Criar um dashboard financeiro completo para o painel administrativo da Arena Beach Praia, permitindo que gestores e administradores tenham visibilidade total das receitas, transações e saúde financeira do negócio em tempo real.
+
+Este módulo é o "coração" do administrativo: todas as decisões operacionais e estratégicas convergem para os dados financeiros aqui centralizados.
+
+### 1.2 Problema que resolve
+
+Atualmente, o sistema possui:
+- Uma página `/admin/payments` básica com balanços superficiais
+- Uma página `/admin/reports` com relatórios filtráveis mas sem visão de transações individuais
+- Ausência total de análise por método de pagamento
+- Sem visibilidade de transações em análise ou recusadas
+- Sem reconciliação financeira ou conciliação com o gateway
+
+O gestor não consegue responder perguntas como:
+> "Quanto recebi em PIX hoje?"
+> "Quantas transações foram recusadas este mês?"
+> "Qual método de pagamento mais gera estorno?"
+
+### 1.3 Solução Proposta
+
+Um módulo financeiro completo em `/admin/financeiro` composto por:
+1. **Painel de Receitas** — visão consolidada de tudo que entrou
+2. **Análise por Período** — evolução temporal das receitas
+3. **Análise por Método de Pagamento** — PIX vs Cartão vs outros
+4. **Central de Transações** — listagem com filtros por status (aprovadas, em análise, recusadas, reembolsadas)
+5. **Exportação e Relatórios** — dados para contabilidade e conciliação
+
+---
+
+## 2. CONTEXTO TÉCNICO
+
+### 2.1 Stack Existente
+
+| Camada | Tecnologia |
+|---|---|
+| Framework | Next.js 15.3.1 (App Router) |
+| UI | React 19, TypeScript 5.8, Tailwind CSS 4 |
+| Banco | PostgreSQL via Prisma ORM 6.0 |
+| Pagamentos | MercadoPago Orders API |
+| Auth | NextAuth v5 (JWT + Credentials) |
+| Gráficos | Recharts 2.15 |
+| Cache/Query | TanStack React Query 5.62 |
+| Data | date-fns 4.1 |
+| Arquitetura | Clean Architecture + MVVM |
+
+### 2.2 Modelos de Dados Relevantes
+
+#### Payment (existente)
+```typescript
+model Payment {
+  id              String        // cuid
+  bookingId       String        // unique → 1:1 com Booking
+  method          PaymentMethod // PIX | CREDIT_CARD | DEBIT_CARD
+  status          PaymentStatus // ver enum abaixo
+  amount          Decimal       // valor bruto
+  gatewayId       String?       // ID no MercadoPago
+  gatewayStatus   String?       // status raw do gateway
+  pixQrCode       String?
+  pixQrCodeBase64 String?
+  pixExpiration   DateTime?
+  cardLastFour    String?
+  cardBrand       String?       // visa, mastercard, elo, etc.
+  installments    Int?
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  refundedBy      String?       // userId do admin que fez o estorno
+  refundAmount    Decimal?
+  refundGatewayId String?
+  refundReason    String?
+  createdAt       DateTime
+  updatedAt       DateTime
+  booking         Booking       // relação
+}
+
+enum PaymentMethod {
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+  CANCELLED
+  REFUNDED
+  PARTIAL_REFUND
+  EXPIRED
+}
+```
+
+#### Booking (existente — join necessário)
+```typescript
+model Booking {
+  id          String
+  userId      String
+  courtId     String
+  date        DateTime
+  startTime   String
+  endTime     String
+  totalValue  Decimal
+  status      BookingStatus  // PENDING | CONFIRMED | CANCELLED | NO_SHOW | COMPLETED
+  payment     Payment?
+  user        User
+  court       Court
+}
+```
+
+### 2.3 APIs Existentes que serão estendidas
+
+| Endpoint | Status | Ação |
+|---|---|---|
+| `GET /api/admin/stats` | ✅ Existente | Estender com breakdowns de método |
+| `GET /api/admin/reports` | ✅ Existente | Estender com status de transação |
+| `POST /api/payments/refund` | ✅ Existente | Manter sem alteração |
+| `GET /api/admin/financeiro/summary` | 🆕 Novo | Criar |
+| `GET /api/admin/financeiro/transactions` | 🆕 Novo | Criar |
+| `GET /api/admin/financeiro/by-method` | 🆕 Novo | Criar |
+| `GET /api/admin/financeiro/by-period` | 🆕 Novo | Criar |
+
+### 2.4 Rota no App Router
+
+```
+src/app/(admin)/admin/financeiro/
+├── page.tsx              # Rota principal /admin/financeiro
+├── loading.tsx           # Skeleton loader
+└── error.tsx             # Error boundary
+```
+
+---
+
+## 3. PERSONAS E CASOS DE USO
+
+### 3.1 Personas
+
+**Adriana — Gerente Financeira**
+- Acessa o sistema diariamente
+- Precisa fechar o caixa ao final do dia
+- Quer saber exatamente o que entrou por método de pagamento
+- Precisa gerar relatório para o contador
+
+**Rafael — Administrador do Negócio**
+- Acessa semanalmente para visão estratégica
+- Quer entender tendências e sazonalidade
+- Toma decisões de preço e promoções com base nos dados
+- Quer identificar clientes que geram mais chargebacks
+
+**Carlos — Recepcionista**
+- Acesso limitado (role RECEPTIONIST — não terá acesso a este módulo)
+- Este módulo é exclusivo para MANAGER e ADMIN
+
+### 3.2 Casos de Uso Principais
+
+| ID | Como | Quero | Para |
+|---|---|---|---|
+| UC-01 | gerente | ver total recebido hoje/semana/mês | fechar o caixa |
+| UC-02 | gerente | ver pagamentos por método | entender qual canal mais usado |
+| UC-03 | gerente | ver transações recusadas | identificar problemas de pagamento |
+| UC-04 | gerente | ver transações em análise | acompanhar pendências |
+| UC-05 | admin | exportar dados do período | enviar para contador |
+| UC-06 | admin | filtrar transações por status | investigar problemas |
+| UC-07 | admin | ver evolução da receita no tempo | análise estratégica |
+| UC-08 | admin | processar reembolso diretamente | resolver reclamações |
+| UC-09 | gerente | ver ticket médio por método | otimizar mix de pagamento |
+| UC-10 | admin | ver taxa de aprovação por método | decisões de gateway |
+
+---
+
+## 4. REQUISITOS FUNCIONAIS
+
+### 4.1 RF-01 — Painel de Receitas (Hero Section)
+
+**Descrição:** Cards KPI na parte superior do dashboard mostrando a saúde financeira consolidada.
+
+**Campos:**
+- **Receita Bruta** — soma de todos os `Payment.amount` com status `APPROVED`
+- **Receita Líquida** — Receita Bruta − Estornos (REFUNDED + PARTIAL_REFUND)
+- **Total Estornos** — soma de `Payment.refundAmount` para pagamentos reembolsados
+- **Ticket Médio** — Receita Bruta ÷ count de pagamentos aprovados
+- **Taxa de Aprovação** — (APPROVED ÷ total iniciados) × 100
+- **Transações em Análise** — count de `Payment.status = PROCESSING`
+
+**Seletor de Período:** hoje | esta semana | este mês | período personalizado
+
+**Comparativo:** Mostrar variação percentual vs período anterior (ex: "↑ 12% vs semana passada")
+
+**Layout:**
+```
+┌─────────────────┬─────────────────┬─────────────────┐
+│  Receita Bruta  │ Receita Líquida │  Total Estornos  │
+│   R$ 12.840     │   R$ 12.440     │     R$ 400       │
+│   ↑ 8% vs ant   │   ↑ 6% vs ant  │   ↓ 2% vs ant   │
+├─────────────────┼─────────────────┼─────────────────┤
+│  Ticket Médio   │ Taxa Aprovação  │  Em Análise      │
+│    R$ 185,00    │    94,2%        │    3 transações  │
+│   → estável     │   ↑ 1,1pp       │   🟡 atenção    │
+└─────────────────┴─────────────────┴─────────────────┘
+```
+
+---
+
+### 4.2 RF-02 — Análise por Período
+
+**Descrição:** Gráfico de evolução temporal da receita com granularidade configurável.
+
+**Variantes de Visualização:**
+- **Por Dia** (padrão para "esta semana") — barras diárias
+- **Por Semana** (padrão para "este mês") — barras semanais
+- **Por Mês** (padrão para "este ano") — barras mensais
+
+**Séries no Gráfico:**
+1. Receita Bruta (barra primary color #624325)
+2. Estornos (barra danger/red)
+3. Receita Líquida (linha sobreposta, cor verde)
+
+**Tooltip ao hover:**
+```
+📅 Segunda, 28 Abr
+──────────────────
+Receita Bruta:  R$ 1.240,00
+Estornos:       R$ 120,00
+Receita Líquida: R$ 1.120,00
+Transações: 7
+```
+
+**Implementação:** Usar Recharts `ComposedChart` (Bar + Line), já instalado.
+
+---
+
+### 4.3 RF-03 — Pagamentos por Método
+
+**Descrição:** Breakdown completo de receita e volume por método de pagamento.
+
+**Métodos contemplados:**
+
+| Método | Enum DB | Exibição | Ícone |
+|---|---|---|---|
+| PIX | `PIX` | PIX | QR code / raio |
+| Cartão de Crédito | `CREDIT_CARD` | Crédito | cartão |
+| Cartão de Débito | `DEBIT_CARD` | Débito | cartão |
+| Boleto | — (não existe ainda) | Boleto | código de barras |
+| Dinheiro | — (não existe ainda) | Dinheiro | nota |
+
+> **Nota sobre Boleto e Dinheiro:** O schema atual não suporta esses métodos. O PRD prevê sua adição futura. Na V1, exibir apenas PIX, Crédito e Débito. Boleto e Dinheiro aparecem como cards desabilitados com label "Em breve".
+
+**Visualizações:**
+1. **Donut Chart** — participação percentual de cada método
+2. **Cards por Método** — cada método com:
+   - Volume em R$ (soma dos aprovados)
+   - Quantidade de transações
+   - Ticket médio
+   - Taxa de aprovação específica do método
+   - Valor estornado no método
+
+**Layout:**
+```
+┌──────────────────────────────────────────────────┐
+│  PAGAMENTOS POR MÉTODO                           │
+├──────────┬───────────────────────────────────────┤
+│          │  ┌─────────┐ ┌─────────┐ ┌─────────┐ │
+│  DONUT   │  │   PIX   │ │ CRÉDITO │ │ DÉBITO  │ │
+│  CHART   │  │ R$8.400 │ │ R$3.200 │ │ R$1.240 │ │
+│          │  │ 45 trans│ │ 17 trans│ │ 8 trans │ │
+│  PIX 65% │  │ TM R$186│ │ TM R$188│ │TM R$155 │ │
+│  CRD 25% │  │ 96% apr │ │ 91% apr │ │ 94% apr │ │
+│  DEB 10% │  └─────────┘ └─────────┘ └─────────┘ │
+│          │  ┌─────────┐ ┌─────────┐             │
+│          │  │ BOLETO  │ │DINHEIRO │             │
+│          │  │ Em breve│ │Em breve │             │
+└──────────┴──┴─────────┴─────────────────────────┘
+```
+
+---
+
+### 4.4 RF-04 — Central de Transações
+
+**Descrição:** Listagem completa de transações com filtros avançados por status.
+
+**Abas de Status:**
+```
+[ Todas (128) ] [ Aprovadas (121) ] [ Em Análise (3) ] [ Recusadas (2) ] [ Reembolsadas (2) ]
+```
+
+**Colunas da Tabela:**
+
+| Coluna | Origem | Exibição |
+|---|---|---|
+| # ID | `Payment.id` | 8 primeiros chars |
+| Data/Hora | `Payment.paidAt ?? Payment.createdAt` | dd/MM HH:mm |
+| Cliente | `Booking.user.name` | nome completo |
+| Quadra | `Booking.court.name` | nome da quadra |
+| Método | `Payment.method` | badge com ícone |
+| Valor | `Payment.amount` | R$ formatado |
+| Status | `Payment.status` | badge colorido |
+| Ações | — | botões contextuais |
+
+**Badges de Status:**
+
+| Status DB | Label | Cor |
+|---|---|---|
+| PENDING | Pendente | amber/warning |
+| PROCESSING | Em Análise | blue/info |
+| APPROVED | Aprovado | green/success |
+| REJECTED | Recusado | red/danger |
+| CANCELLED | Cancelado | gray |
+| REFUNDED | Reembolsado | purple |
+| PARTIAL_REFUND | Estorno Parcial | orange |
+| EXPIRED | Expirado | gray/dim |
+
+**Filtros Disponíveis:**
+- Período (date range picker)
+- Método de pagamento (multi-select)
+- Status (multi-select, ou via abas)
+- Valor mínimo / máximo
+- Busca por nome do cliente ou ID da transação
+
+**Paginação:** 20 itens por página, com total de registros exibido.
+
+**Ações por Linha:**
+- **Ver detalhes** → modal lateral (drawer) com todos os dados da transação
+- **Reembolsar** → abre RefundModal (apenas para APPROVED, visível para MANAGER/ADMIN)
+- **Ver agendamento** → link para `/admin/bookings/[id]`
+
+**Modal de Detalhes da Transação:**
+```
+┌─────────────────────────────────────┐
+│ Transação #abc12345                 │
+├─────────────────────────────────────┤
+│ Status:    ✅ APROVADO              │
+│ Valor:     R$ 185,00               │
+│ Método:    PIX                      │
+│ Gateway:   MP-123456789            │
+│ Criado em: 28/04/2026 14:32        │
+│ Pago em:   28/04/2026 14:35        │
+├─────────────────────────────────────┤
+│ Cliente:   João Silva               │
+│ E-mail:    joao@email.com          │
+│ Quadra:    Arena Principal         │
+│ Data:      01/05/2026 16h–17h      │
+├─────────────────────────────────────┤
+│ [Ver Agendamento] [Reembolsar]      │
+└─────────────────────────────────────┘
+```
+
+---
+
+### 4.5 RF-05 — Seção: Em Análise (Destaque)
+
+**Descrição:** Alerta dedicado quando há transações em status PROCESSING, para que o gestor tome ação.
+
+**Comportamento:**
+- Aparece apenas quando há ≥ 1 transação com `status = PROCESSING`
+- Banner de alerta no topo da página (abaixo dos KPIs)
+- Lista rápida das transações em análise com: ID, cliente, valor, tempo aguardando
+
+```
+⚠️  3 transações aguardando confirmação do gateway
+
+#abc12345  Maria Santos   R$ 240,00  há 12 minutos  [Ver]
+#def67890  Pedro Lima     R$ 185,00  há 2 horas     [Ver]
+#ghi11121  Ana Costa      R$ 310,00  há 5 horas     [Ver ⚠️]
+```
+
+> Transações em PROCESSING há mais de 2 horas devem ser marcadas com ícone de atenção adicional, pois podem indicar problema com o webhook.
+
+---
+
+### 4.6 RF-06 — Exportação de Dados
+
+**Descrição:** Exportar os dados financeiros para uso externo (contador, ERP, auditoria).
+
+**Formatos:**
+- **CSV** — compatível com Excel e Google Sheets
+- **PDF** — relatório formatado para impressão (V2)
+
+**Dados exportados no CSV:**
+```csv
+id,data,hora,cliente,email,cpf,quadra,metodo,valor,status,gateway_id,estorno,motivo_estorno
+abc12345,28/04/2026,14:35,João Silva,joao@email.com,123.456.789-00,Arena Principal,PIX,185.00,APPROVED,MP-123,,,
+```
+
+**Filtros respeitados:** O CSV exporta exatamente os dados filtrados na tela (período + status + método).
+
+**Gatilho:** Botão "Exportar CSV" no canto superior direito da Central de Transações.
+
+---
+
+### 4.7 RF-07 — Navegação e UX
+
+**Rota:** `/admin/financeiro` (nova rota, renomeando `/admin/payments`)
+
+> **Migração:** A rota existente `/admin/payments` deve redirecionar para `/admin/financeiro` via `redirect()` para não quebrar bookmarks.
+
+**Sidebar:** Item "Financeiro" (ícone CreditCard) já existente, atualizar href de `/admin/payments` para `/admin/financeiro`.
+
+**Estrutura de tabs/seções dentro da página:**
+
+```
+/admin/financeiro
+│
+├── [Visão Geral]       → KPIs + Gráfico por período
+├── [Por Método]        → Donut + cards por método
+└── [Transações]        → Tabela com filtros e abas por status
+```
+
+Implementar como tabs horizontais ou scroll sections com navegação âncora.
+
+---
+
+## 5. REQUISITOS NÃO-FUNCIONAIS
+
+### 5.1 Performance
+
+| Métrica | Target |
+|---|---|
+| Carregamento inicial da página | < 800ms (LCP) |
+| Atualização após filtro | < 500ms |
+| Exportação CSV (até 500 linhas) | < 2s |
+| Exportação CSV (até 5000 linhas) | < 10s |
+
+**Estratégia:**
+- React Query com `staleTime: 5 * 60 * 1000` (5 min) para KPIs
+- `staleTime: 0` para transações (dados em tempo real)
+- Queries paralelas para KPIs e transações (não bloquear uma na outra)
+- Pagination server-side (não carregar todos os registros no cliente)
+
+### 5.2 Segurança
+
+- Todas as rotas de API novas devem verificar `session.user.role` in `['MANAGER', 'ADMIN']`
+- Dados de CPF e e-mail mascarados na listagem (exibir completo apenas no modal de detalhes)
+- Export CSV deve ser gerado server-side (nunca expor todos os dados no cliente)
+- Log em `AuditLog` para cada reembolso processado (já implementado em `RefundPaymentUseCase`)
+
+### 5.3 Responsividade
+
+| Breakpoint | Comportamento |
+|---|---|
+| Mobile (< 768px) | Cards empilhados, tabela com scroll horizontal, abas em dropdown |
+| Tablet (768–1024px) | Grid 2 colunas para KPIs, tabela simplificada |
+| Desktop (> 1024px) | Layout completo conforme especificado |
+
+### 5.4 Acessibilidade
+
+- Labels ARIA em todos os gráficos (`aria-label` com valores)
+- Tabelas com `<th scope="col">` e `<caption>`
+- Foco visível em todos os elementos interativos
+- Cores de status nunca únicas como única distinção (sempre acompanhar ícone ou texto)
+
+---
+
+## 6. ESPECIFICAÇÃO DE APIs
+
+### 6.1 GET `/api/admin/financeiro/summary`
+
+**Auth:** MANAGER | ADMIN
+**Descrição:** Dados consolidados para os KPIs do topo da página.
+
+**Query Params:**
+```
+startDate: string (ISO 8601, ex: "2026-04-01")
+endDate: string   (ISO 8601, ex: "2026-04-30")
+```
+
+**Response:**
+```typescript
+{
+  period: {
+    startDate: string
+    endDate: string
+  }
+  revenue: {
+    gross: number          // soma amount dos APPROVED
+    net: number            // gross - refunds
+    refunded: number       // soma refundAmount dos REFUNDED + PARTIAL_REFUND
+    averageTicket: number  // gross / count APPROVED
+  }
+  transactions: {
+    total: number          // total no período
+    approved: number
+    processing: number
+    rejected: number
+    cancelled: number
+    refunded: number
+    expired: number
+    approvalRate: number   // approved / (approved + rejected) * 100
+  }
+  comparison: {            // vs período anterior de mesmo tamanho
+    grossRevenueDelta: number       // percentual
+    netRevenueDelta: number
+    approvalRateDelta: number
+    approvedCountDelta: number
+  }
+}
+```
+
+**Prisma Query (simplificado):**
+```typescript
+const payments = await prisma.payment.findMany({
+  where: {
+    createdAt: { gte: startDate, lte: endDate }
+  },
+  select: {
+    status: true,
+    amount: true,
+    refundAmount: true,
+    method: true,
+    paidAt: true
+  }
+})
+```
+
+---
+
+### 6.2 GET `/api/admin/financeiro/by-period`
+
+**Auth:** MANAGER | ADMIN
+**Descrição:** Dados agregados por unidade de tempo para o gráfico de evolução.
+
+**Query Params:**
+```
+startDate: string
+endDate: string
+granularity: "day" | "week" | "month"  (default: auto-calculado pelo range)
+```
+
+**Response:**
+```typescript
+{
+  granularity: "day" | "week" | "month"
+  data: Array<{
+    label: string        // ex: "28 Abr", "Semana 18", "Abril"
+    date: string         // ISO 8601
+    gross: number
+    net: number
+    refunded: number
+    count: number        // número de transações aprovadas
+  }>
+}
+```
+
+---
+
+### 6.3 GET `/api/admin/financeiro/by-method`
+
+**Auth:** MANAGER | ADMIN
+**Descrição:** Breakdown por método de pagamento.
+
+**Query Params:**
+```
+startDate: string
+endDate: string
+```
+
+**Response:**
+```typescript
+{
+  methods: Array<{
+    method: "PIX" | "CREDIT_CARD" | "DEBIT_CARD"
+    label: string          // "PIX", "Crédito", "Débito"
+    gross: number          // soma dos aprovados
+    refunded: number
+    count: number          // transações aprovadas
+    totalAttempts: number  // incluindo rejected/cancelled
+    approvalRate: number
+    averageTicket: number
+    shareOfRevenue: number // percentual do total
+  }>
+  total: {
+    gross: number
+    count: number
+  }
+}
+```
+
+---
+
+### 6.4 GET `/api/admin/financeiro/transactions`
+
+**Auth:** MANAGER | ADMIN
+**Descrição:** Listagem paginada de transações com filtros.
+
+**Query Params:**
+```
+startDate?: string
+endDate?: string
+status?: string     (separado por vírgula: "APPROVED,PROCESSING")
+method?: string     (separado por vírgula: "PIX,CREDIT_CARD")
+search?: string     (nome do cliente ou ID da transação)
+minAmount?: number
+maxAmount?: number
+page?: number       (default: 1)
+pageSize?: number   (default: 20, max: 100)
+```
+
+**Response:**
+```typescript
+{
+  data: Array<{
+    id: string
+    createdAt: string
+    paidAt: string | null
+    method: "PIX" | "CREDIT_CARD" | "DEBIT_CARD"
+    status: PaymentStatus
+    amount: number
+    refundAmount: number | null
+    refundReason: string | null
+    gatewayId: string | null
+    gatewayStatus: string | null
+    cardLastFour: string | null
+    cardBrand: string | null
+    booking: {
+      id: string
+      date: string
+      startTime: string
+      endTime: string
+      court: { id: string; name: string }
+      user: {
+        id: string
+        name: string
+        email: string     // mascarado na lista: j***@email.com
+        phone: string | null
+      }
+    }
+  }>
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
+  summary: {             // resumo dos dados filtrados (para o CSV saber o total)
+    totalAmount: number
+    totalRefunded: number
+    count: number
+  }
+}
+```
+
+---
+
+### 6.5 GET `/api/admin/financeiro/transactions/export`
+
+**Auth:** MANAGER | ADMIN
+**Descrição:** Exporta dados filtrados como CSV (stream).
+
+**Query Params:** Mesmos do endpoint `/transactions`, sem `page` e `pageSize`.
+
+**Response Headers:**
+```
+Content-Type: text/csv; charset=utf-8
+Content-Disposition: attachment; filename="financeiro_2026-04-01_2026-04-30.csv"
+```
+
+**Response Body:** Stream CSV com BOM para compatibilidade com Excel.
+
+---
+
+## 7. ESPECIFICAÇÃO DE COMPONENTES
+
+### 7.1 Novos Componentes
+
+#### `FinanceiroSummaryCards`
+**Path:** `src/views/components/admin/financeiro/SummaryCards.tsx`
+
+Props:
+```typescript
+interface SummaryCardsProps {
+  data: FinanceiroSummary
+  loading: boolean
+  period: DateRange
+}
+```
+
+Renderiza os 6 KPI cards com skeleton loading.
+
+---
+
+#### `RevenuePeriodChart`
+**Path:** `src/views/components/admin/financeiro/RevenuePeriodChart.tsx`
+
+Recharts `ComposedChart`:
+- `Bar` para Receita Bruta (primary)
+- `Bar` para Estornos (danger, empilhada ou lado a lado)
+- `Line` para Receita Líquida (green, secondary y-axis)
+
+Props:
+```typescript
+interface RevenuePeriodChartProps {
+  data: PeriodDataPoint[]
+  granularity: "day" | "week" | "month"
+  loading: boolean
+}
+```
+
+---
+
+#### `PaymentMethodBreakdown`
+**Path:** `src/views/components/admin/financeiro/PaymentMethodBreakdown.tsx`
+
+Recharts `PieChart` (donut) + grid de MethodCards.
+
+Props:
+```typescript
+interface PaymentMethodBreakdownProps {
+  data: MethodData[]
+  loading: boolean
+}
+```
+
+---
+
+#### `MethodCard`
+**Path:** `src/views/components/admin/financeiro/MethodCard.tsx`
+
+Card individual por método com ícone, valor, percentual, taxa de aprovação.
+
+```typescript
+interface MethodCardProps {
+  method: "PIX" | "CREDIT_CARD" | "DEBIT_CARD" | "BOLETO" | "CASH"
+  gross: number
+  count: number
+  approvalRate: number
+  averageTicket: number
+  shareOfRevenue: number
+  disabled?: boolean  // true para Boleto e Dinheiro (em breve)
+}
+```
+
+---
+
+#### `TransactionTable`
+**Path:** `src/views/components/admin/financeiro/TransactionTable.tsx`
+
+Tabela com:
+- Abas de status (Todas / Aprovadas / Em Análise / Recusadas / Reembolsadas)
+- Filtros em modal/drawer lateral
+- Paginação server-side
+- Linha clicável → abre `TransactionDetailDrawer`
+
+```typescript
+interface TransactionTableProps {
+  transactions: Transaction[]
+  pagination: PaginationInfo
+  loading: boolean
+  onPageChange: (page: number) => void
+  onFilterChange: (filters: TransactionFilters) => void
+  onRefund: (paymentId: string) => void
+}
+```
+
+---
+
+#### `TransactionDetailDrawer`
+**Path:** `src/views/components/admin/financeiro/TransactionDetailDrawer.tsx`
+
+Drawer lateral (slide-in da direita) com todos os detalhes da transação selecionada.
+
+```typescript
+interface TransactionDetailDrawerProps {
+  transaction: Transaction | null
+  open: boolean
+  onClose: () => void
+  onRefund: (paymentId: string) => void
+  canRefund: boolean  // apenas MANAGER/ADMIN e status APPROVED
+}
+```
+
+---
+
+#### `ProcessingAlert`
+**Path:** `src/views/components/admin/financeiro/ProcessingAlert.tsx`
+
+Banner de alerta condicional para transações em análise.
+
+```typescript
+interface ProcessingAlertProps {
+  transactions: Transaction[]  // apenas as PROCESSING
+}
+```
+
+---
+
+### 7.2 ViewModel (Hook)
+
+**Path:** `src/viewmodels/admin/useFinanceiroViewModel.ts`
+
+```typescript
+interface FinanceiroViewModel {
+  // Estado
+  period: DateRange
+  granularity: "day" | "week" | "month"
+  activeTab: "overview" | "methods" | "transactions"
+  transactionFilters: TransactionFilters
+  selectedTransaction: Transaction | null
+
+  // Dados
+  summary: FinanceiroSummary | undefined
+  periodData: PeriodDataPoint[] | undefined
+  methodData: MethodData[] | undefined
+  transactions: Transaction[] | undefined
+  pagination: PaginationInfo | undefined
+  processingTransactions: Transaction[]
+
+  // Loading states
+  summaryLoading: boolean
+  periodLoading: boolean
+  methodLoading: boolean
+  transactionsLoading: boolean
+
+  // Handlers
+  setPeriod: (period: DateRange) => void
+  setActiveTab: (tab: string) => void
+  setTransactionFilters: (filters: Partial<TransactionFilters>) => void
+  setSelectedTransaction: (t: Transaction | null) => void
+  handlePageChange: (page: number) => void
+  handleExportCSV: () => Promise<void>
+  handleRefund: (paymentId: string) => void
+}
+```
+
+---
+
+### 7.3 Repository / UseCase Necessários
+
+#### Novo: `IFinanceiroRepository`
+**Path:** `src/repositories/IFinanceiroRepository.ts`
+
+```typescript
+interface IFinanceiroRepository {
+  getSummary(startDate: Date, endDate: Date): Promise<FinanceiroSummary>
+  getByPeriod(startDate: Date, endDate: Date, granularity: Granularity): Promise<PeriodDataPoint[]>
+  getByMethod(startDate: Date, endDate: Date): Promise<MethodData[]>
+  getTransactions(filters: TransactionFilters): Promise<PaginatedResult<Transaction>>
+  exportTransactions(filters: TransactionFilters): Promise<TransactionExportRow[]>
+}
+```
+
+#### Implementação: `PrismaFinanceiroRepository`
+**Path:** `src/infrastructure/repositories/PrismaFinanceiroRepository.ts`
+
+Implementação com queries Prisma otimizadas usando `groupBy` e `aggregate`.
+
+---
+
+## 8. FLUXO DE DADOS
+
+```
+Usuário acessa /admin/financeiro
+         ↓
+useFinanceiroViewModel() inicializa
+         ↓
+┌─────────────────────────────────────────┐
+│  Queries paralelas (React Query):       │
+│  1. /api/admin/financeiro/summary       │
+│  2. /api/admin/financeiro/by-period     │
+│  3. /api/admin/financeiro/by-method     │
+│  4. /api/admin/financeiro/transactions  │
+└─────────────────────────────────────────┘
+         ↓
+Cada API → valida sessão → chama PrismaFinanceiroRepository
+         ↓
+PostgreSQL (Prisma queries com groupBy/aggregate)
+         ↓
+Resposta formatada → React Query cache
+         ↓
+Componentes renderizam com dados
+
+Usuário muda filtro de período:
+  → invalidate queries → refetch automático
+
+Usuário clica "Exportar CSV":
+  → POST /api/admin/financeiro/transactions/export
+  → Server-side stream → download automático
+
+Usuário clica "Reembolsar":
+  → RefundModal (existente)
+  → POST /api/payments/refund (existente)
+  → invalidate transactions query
+```
+
+---
+
+## 9. ESTADOS DE UI
+
+### 9.1 Estados de Loading
+
+- **Skeleton Cards** — StatsCard existente já tem loading prop
+- **Chart Skeleton** — retângulo cinza animado no lugar do gráfico
+- **Table Skeleton** — 5 linhas de skeleton rows
+
+### 9.2 Estados de Erro
+
+- **Erro de rede** — banner com botão "Tentar novamente"
+- **Sem dados no período** — empty state com ilustração e sugestão de período diferente
+- **Erro de exportação** — toast de erro
+
+### 9.3 Estados Vazios
+
+```
+Nenhuma transação encontrada para o período selecionado.
+
+[Ícone de lupa]
+
+Tente ajustar os filtros ou selecionar um período diferente.
+
+[Limpar filtros]
+```
+
+---
+
+## 10. DESIGN E IDENTIDADE VISUAL
+
+### 10.1 Paleta de Cores (existente, manter consistência)
+
+```css
+--color-primary: #624325    /* marrom — receita bruta */
+--color-success: #22c55e    /* verde — aprovado / receita líquida */
+--color-danger: #ef4444     /* vermelho — recusado / estorno */
+--color-warning: #f59e0b    /* âmbar — em análise / pendente */
+--color-info: #3b82f6       /* azul — processando */
+--color-neutral: #6b7280    /* cinza — cancelado / expirado */
+```
+
+### 10.2 Ícones por Método (Lucide, já instalado)
+
+| Método | Ícone Lucide |
+|---|---|
+| PIX | `Zap` |
+| Cartão de Crédito | `CreditCard` |
+| Cartão de Débito | `CreditCard` (com badge "DB") |
+| Boleto | `Barcode` |
+| Dinheiro | `Banknote` |
+
+### 10.3 Tipografia dos Valores
+
+- Valores monetários grandes: `font-headlines` (Lexend) + `text-2xl font-bold`
+- Labels: `font-sans` (Be Vietnam Pro) + `text-sm text-gray-500`
+- Manter `formatCurrency` existente em `src/core/utils/formatCurrency.ts`
+
+---
+
+## 11. ESCOPO E FASES
+
+### Fase 1 — MVP (Prioridade Alta) ★★★
+
+Entregáveis mínimos para substituir `/admin/payments`:
+
+- [ ] Rota `/admin/financeiro` com redirect de `/admin/payments`
+- [ ] RF-01: KPI Cards com período (hoje/semana/mês)
+- [ ] RF-04: Tabela de Transações com abas de status
+- [ ] RF-04: Modal de detalhes da transação
+- [ ] RF-05: Banner de transações em análise
+- [ ] APIs: `/summary` e `/transactions`
+- [ ] Manter funcionamento do RefundModal existente
+
+**Estimativa:** 3–4 dias de desenvolvimento
+
+---
+
+### Fase 2 — Análises (Prioridade Alta) ★★☆
+
+- [ ] RF-02: Gráfico de Receita por Período
+- [ ] RF-03: Breakdown por Método de Pagamento (PIX, Crédito, Débito)
+- [ ] RF-06: Exportação CSV
+- [ ] APIs: `/by-period`, `/by-method`, `/transactions/export`
+- [ ] Filtros avançados na tabela (busca, valor mín/máx, método)
+- [ ] Comparativo vs período anterior nos KPIs
+
+**Estimativa:** 3–4 dias de desenvolvimento
+
+---
+
+### Fase 3 — Evolução (Prioridade Média) ★☆☆
+
+- [ ] Suporte a Boleto e Dinheiro no schema (`PaymentMethod` enum)
+- [ ] Relatório em PDF (server-side rendering)
+- [ ] Gráfico de calor (heatmap) de horários mais lucrativos
+- [ ] Alertas por e-mail para transações em análise > 2h
+- [ ] Dashboard de fraude / chargebacks
+- [ ] Previsão de receita (próximos 7 dias baseado em agendamentos confirmados)
+
+**Estimativa:** 1–2 semanas
+
+---
+
+### Fase 4 — Integrações (Prioridade Baixa) ☆☆☆
+
+- [ ] Exportação XLSX (Excel nativo)
+- [ ] Integração contábil (NF-e via API)
+- [ ] Conciliação automática com extrato MercadoPago
+- [ ] Multi-empresa / multi-unidade
+- [ ] API pública para ERP
+
+---
+
+## 12. MÉTRICAS DE SUCESSO
+
+| Métrica | Baseline atual | Target pós-implementação |
+|---|---|---|
+| Tempo para fechar o caixa do dia | ~20 min (manual) | < 5 min |
+| Cobertura de análise financeira | 30% dos dados disponíveis | 90% |
+| Tempo médio para identificar transação problemática | ~15 min | < 2 min |
+| Adoção da exportação CSV | 0% | > 80% das sessões de fechamento |
+| NPS gestor com o módulo financeiro | N/A | > 8/10 |
+
+---
+
+## 13. RESTRIÇÕES E PREMISSAS
+
+### Restrições
+
+1. **MercadoPago Only (V1):** O sistema atualmente só processa PIX e Cartão via MercadoPago. Boleto e Dinheiro são previstos para V3.
+2. **Sem conciliação automática:** A V1 não fará chamadas à API do MercadoPago para reconciliar — apenas usa dados do banco local.
+3. **Permissão mínima:** Apenas `MANAGER` e `ADMIN` acessam o módulo. `RECEPTIONIST` não tem acesso.
+4. **Sem multi-empresa:** O sistema é single-tenant (uma arena). Multi-unidade é V4.
+
+### Premissas
+
+1. O banco de dados PostgreSQL está corretamente registrando todos os webhooks do MercadoPago.
+2. O `AuditLog` continuará sendo usado para rastreabilidade de reembolsos.
+3. O componente `RefundModal` existente pode ser reusado sem modificação.
+4. `date-fns` e `Recharts` já instalados cobrem todas as necessidades de data e gráfico.
+
+---
+
+## 14. DEPENDÊNCIAS E RISCOS
+
+### Dependências
+
+| Dependência | Tipo | Impacto se falhar |
+|---|---|---|
+| MercadoPago Webhook | Externa | Transações ficam em PROCESSING indefinidamente |
+| PostgreSQL disponível | Infra | Módulo inteiro indisponível |
+| Sessão NextAuth válida | Auth | Redirect para /login |
+
+### Riscos
+
+| Risco | Probabilidade | Impacto | Mitigação |
+|---|---|---|---|
+| Queries lentas com grande volume de dados | Média | Timeout na exportação | Adicionar índices em `Payment.createdAt` + `Payment.status`; paginação server-side |
+| Dados inconsistentes (webhook perdido) | Baixa | KPI incorreto | Exibir timestamp da última atualização; botão "sincronizar" manual na V2 |
+| Conflito de nomes de rota | Baixa | 404 | Redirect explícito de `/admin/payments` para `/admin/financeiro` |
+
+---
+
+## 15. ÍNDICES DE BANCO DE DADOS NECESSÁRIOS
+
+Para garantir performance nas queries do dashboard financeiro, adicionar os seguintes índices via migração Prisma:
+
+```prisma
+// Em schema.prisma, model Payment:
+@@index([createdAt])
+@@index([status])
+@@index([method])
+@@index([status, createdAt])     // query mais comum: status por período
+@@index([method, status])        // breakdown por método
+@@index([paidAt])                // filtro por data de pagamento
+```
+
+Migração: `prisma migrate dev --name add_payment_financial_indexes`
+
+---
+
+## 16. CHECKLIST DE IMPLEMENTAÇÃO
+
+### Backend
+- [ ] Criar `IFinanceiroRepository` interface
+- [ ] Implementar `PrismaFinanceiroRepository` com queries otimizadas
+- [ ] Criar `GET /api/admin/financeiro/summary`
+- [ ] Criar `GET /api/admin/financeiro/by-period`
+- [ ] Criar `GET /api/admin/financeiro/by-method`
+- [ ] Criar `GET /api/admin/financeiro/transactions`
+- [ ] Criar `GET /api/admin/financeiro/transactions/export` (CSV stream)
+- [ ] Validação Zod em todos os endpoints
+- [ ] Guard de auth em todos os endpoints (`MANAGER | ADMIN`)
+- [ ] Adicionar índices no schema Prisma + migration
+
+### Frontend — Componentes
+- [ ] `SummaryCards.tsx` com skeleton loading
+- [ ] `RevenuePeriodChart.tsx` (ComposedChart)
+- [ ] `PaymentMethodBreakdown.tsx` (PieChart + MethodCards)
+- [ ] `MethodCard.tsx`
+- [ ] `TransactionTable.tsx` com abas de status
+- [ ] `TransactionDetailDrawer.tsx`
+- [ ] `ProcessingAlert.tsx`
+- [ ] `TransactionFilters.tsx` (modal de filtros)
+- [ ] `DateRangePicker.tsx` (se não existir)
+
+### Frontend — Página e ViewModel
+- [ ] `src/app/(admin)/admin/financeiro/page.tsx`
+- [ ] `src/app/(admin)/admin/financeiro/loading.tsx`
+- [ ] `src/app/(admin)/admin/financeiro/error.tsx`
+- [ ] `useFinanceiroViewModel.ts`
+- [ ] Redirect de `/admin/payments` → `/admin/financeiro`
+- [ ] Atualizar href na Sidebar
+
+### Testes e Qualidade
+- [ ] Testar todos os status de pagamento nas abas
+- [ ] Testar exportação CSV com filtros ativos
+- [ ] Testar responsividade mobile / tablet / desktop
+- [ ] Testar com período sem dados (empty state)
+- [ ] Verificar mascaramento de CPF/email na listagem
+- [ ] Testar fluxo completo de reembolso
+
+---
+
+## 17. GLOSSÁRIO
+
+| Termo | Definição |
+|---|---|
+| Receita Bruta | Soma de todos os pagamentos aprovados no período |
+| Receita Líquida | Receita Bruta menos estornos realizados no período |
+| Estorno | Devolução de pagamento (total = REFUNDED, parcial = PARTIAL_REFUND) |
+| Transação em Análise | Pagamento com status PROCESSING (aguardando confirmação do gateway) |
+| Taxa de Aprovação | Percentual de transações aprovadas sobre o total iniciado |
+| Ticket Médio | Valor médio por transação aprovada |
+| Gateway | MercadoPago (provedor de pagamento) |
+| Webhook | Notificação automática do MercadoPago para o sistema quando um pagamento muda de status |
+| PIX | Sistema de pagamento instantâneo do Banco Central do Brasil |
+
+---
+
+*Documento gerado em 2026-04-30 — Arena Beach Praia — Módulo Financeiro v1.0*

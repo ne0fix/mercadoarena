@@ -6,6 +6,7 @@ export interface Court {
   description: string
   pricePerHour: number
   imageUrl: string | null
+  images: string[]
   type: CourtType
   amenities: string[]
   maxPlayers: number

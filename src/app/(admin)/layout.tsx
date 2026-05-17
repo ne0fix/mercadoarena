@@ -3,6 +3,8 @@
 import { useState, type ReactNode } from 'react'
 import { Sidebar } from '@/views/components/layout/admin/Sidebar'
 import { TopBar } from '@/views/components/layout/admin/TopBar'
+import { SocketProvider } from '@/views/providers/SocketProvider'
+import { LiveNotifications } from '@/views/components/admin/LiveNotifications'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/core/utils/helpers'
 
@@ -10,6 +12,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   return (
+    <SocketProvider room="admin">
     <div className="flex min-h-dvh bg-surface overflow-hidden">
       {/* Sidebar - Desktop: fixed, Mobile: Drawer */}
       <aside className={cn(
@@ -45,6 +48,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      <LiveNotifications />
     </div>
+    </SocketProvider>
   )
 }

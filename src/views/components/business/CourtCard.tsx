@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { MapPin, Users, ArrowRight, MessageCircle } from 'lucide-react'
 import { Button } from '@/views/components/ui/Button'
 import { formatCurrency } from '@/core/utils/formatCurrency'
 import { whatsAppService } from '@/services/WhatsAppService'
+import { CourtImageCarousel } from '@/views/components/business/CourtImageCarousel'
 import type { Court } from '@/models/entities/Court'
 
 interface CourtCardProps {
@@ -18,19 +18,11 @@ export function CourtCard({ court }: CourtCardProps) {
   return (
     <div className="flex flex-col group h-full bg-surface-container-lowest rounded-2xl border border-outline-variant/30 overflow-hidden sun-shadow transition-all hover:border-primary/20">
       <div className="relative h-48 md:h-56 overflow-hidden">
-        {court.imageUrl ? (
-          <Image
-            src={court.imageUrl}
-            alt={court.name}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            className="object-cover transition-transform duration-700 group-hover:scale-110"
-          />
-        ) : (
-          <div className="w-full h-full bg-secondary-container flex items-center justify-center">
-            <span className="font-headline text-primary text-2xl font-bold">{court.name[0]}</span>
-          </div>
-        )}
+        <CourtImageCarousel
+          images={court.images ?? []}
+          fallbackUrl={court.imageUrl}
+          name={court.name}
+        />
         <div className="absolute top-3 right-3 z-10">
           {isExclusive ? (
             <span className="bg-amber-100 text-amber-900 px-2.5 py-1 rounded-full font-headline text-[9px] font-bold uppercase tracking-wider border border-amber-200 shadow-sm">
